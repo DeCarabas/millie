@@ -3,9 +3,11 @@
 #endif
 
 #include "platform.c"
+#include "cityhash.c"
 #include "string.c"
 #include "errors.c"
 #include "lexer.c"
+
 
 
 /*
@@ -557,9 +559,8 @@ void PrintErrors(const char *fname, struct MillieTokens *tokens,
                  struct Errors *errors);
 void PrintTokens(struct MillieTokens *tokens);
 
-void
-PrintErrors(const char *fname, struct MillieTokens *tokens,
-            struct Errors *errors)
+void PrintErrors(const char *fname, struct MillieTokens *tokens,
+                 struct Errors *errors)
 {
     struct ErrorReport *error = FirstError(errors);
     while(error) {
@@ -583,15 +584,15 @@ PrintErrors(const char *fname, struct MillieTokens *tokens,
             fname,
             start_line,
             start_col,
-            StringData(error->message)
+            MStringData(error->message)
         );
 
         struct MString *line = ExtractLine(tokens, start_line);
         if (end_line != start_line) {
-            end_col = StringLength(line);
+            end_col = MStringLength(line);
         }
-        printf("%s\n", StringData(line));
-        for(unsigned int i = 1; i <= StringLength(line); i++) {
+        printf("%s\n", MStringData(line));
+        for(unsigned int i = 1; i <= MStringLength(line); i++) {
             if (i < start_col) {
                 printf(" ");
             } else if (i == start_col) {
@@ -603,32 +604,30 @@ PrintErrors(const char *fname, struct MillieTokens *tokens,
             }
         }
         printf("\n");
-        FreeString(&line);
+        MStringFree(&line);
 
         error = error->next;
     }
 }
 
-void
-PrintTokens(struct MillieTokens *tokens)
+void PrintTokens(struct MillieTokens *tokens)
 {
     for(unsigned int i = 0; i < tokens->token_array->item_count; i++) {
         struct MillieToken token;
         token = *(struct MillieToken *)(ArrayListIndex(tokens->token_array, i));
 
-        struct MString *substr = CreateStringN(
-            StringData(tokens->buffer) + token.start,
+        struct MString *substr = MStringCreateN(
+            MStringData(tokens->buffer) + token.start,
             token.length
         );
-        printf("%03d: %s\n", token.type, StringData(substr));
-        FreeString(&substr);
+        printf("%03d: %s\n", token.type, MStringData(substr));
+        MStringFree(&substr);
     }
 }
 
-int
-main()
+int main()
 {
-    struct MString *buffer = CreateString(
+    struct MString *buffer = MStringCreate(
         "let rec factorial =\n"
         "  fn n => if n = 0 then 1 else n * factorial n - 1\n"
         "in factorial 5\n"

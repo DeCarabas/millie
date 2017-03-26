@@ -73,7 +73,7 @@ CreateTokens(struct MString *buffer)
     struct MillieTokens *result = calloc(1, sizeof(struct MillieTokens));
     result->token_array = CreateArrayList(sizeof(struct MillieToken), 200);
     result->line_array = CreateArrayList(sizeof(unsigned int), 100);
-    result->buffer = CopyString(buffer);
+    result->buffer = MStringCopy(buffer);
     return result;
 }
 
@@ -220,8 +220,8 @@ LexBuffer(struct MString *buffer, struct Errors **errors)
     struct MillieTokens *tokens = CreateTokens(buffer);
     *errors = NULL;
 
-    const unsigned int length = StringLength(buffer);
-    const char *start = StringData(buffer);
+    const unsigned int length = MStringLength(buffer);
+    const char *start = MStringData(buffer);
     const char *ptr = start;
     unsigned int error_start = UINT_MAX;
 
@@ -340,9 +340,9 @@ LexBuffer(struct MString *buffer, struct Errors **errors)
         } else if (error_start != UINT_MAX) {
             // We were in an error state, now we aren't; report the
             // scanning error.
-            struct MString *msg = CreateString("Unexpected characters");
+            struct MString *msg = MStringCreate("Unexpected characters");
             AddError(errors, error_start, pos, msg);
-            FreeString(&msg);
+            MStringFree(&msg);
 
             error_start = UINT_MAX;
         }
@@ -388,7 +388,7 @@ ExtractLine(struct MillieTokens *tokens, unsigned int line)
 
     struct ArrayList *line_array = tokens->line_array;
     if (line_array->item_count == 0) {
-        return CopyString(tokens->buffer);
+        return MStringCopy(tokens->buffer);
     }
 
     unsigned int *line_ends = (unsigned int *)(line_array->buffer);
@@ -400,8 +400,8 @@ ExtractLine(struct MillieTokens *tokens, unsigned int line)
     }
     unsigned int line_end = line_ends[line_index];
 
-    return CreateStringN(
-        StringData(tokens->buffer) + line_start,
+    return MStringCreateN(
+        MStringData(tokens->buffer) + line_start,
         line_end - line_start
     );
 }

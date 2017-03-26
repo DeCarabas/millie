@@ -18,20 +18,26 @@ void Fail(char *message);
  */
 
 /*
+ * Hash functions
+ */
+uint32_t CityHash32(const char *s, size_t len);
+
+/*
  * String functions
  */
 struct MString;
 
-struct MString *CreateString(char *str);
-struct MString *CreateStringN(const char *str, unsigned int length);
-void FreeString(struct MString **string_ptr);
-struct MString *CopyString(struct MString *string);
-struct MString *StringCatV(int count, ...);
-struct MString *StringCat(struct MString *first, struct MString *second);
-struct MString *StringPrintF(const char *format, ...);
-struct MString *StringPrintFV(const char *format, va_list args);
-unsigned int StringLength(struct MString *string);
-const char *StringData(struct MString *string);
+struct MString *MStringCreate(char *str);
+struct MString *MStringCreateN(const char *str, unsigned int length);
+void MStringFree(struct MString **string_ptr);
+struct MString *MStringCopy(struct MString *string);
+struct MString *MStringCatV(int count, ...);
+struct MString *MStringCat(struct MString *first, struct MString *second);
+struct MString *MStringPrintF(const char *format, ...);
+struct MString *MStringPrintFV(const char *format, va_list args);
+unsigned int MStringLength(struct MString *string);
+const char *MStringData(struct MString *string);
+unsigned int MStringHash32(struct MString *string);
 
 /*
  * List functions

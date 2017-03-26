@@ -7,9 +7,8 @@ struct Errors {
     struct ErrorReport *last;
 };
 
-void
-AddError(struct Errors **errors_ptr, unsigned int start_pos,
-         unsigned int end_pos, struct MString *message)
+void AddError(struct Errors **errors_ptr, unsigned int start_pos,
+              unsigned int end_pos, struct MString *message)
 {
     struct Errors *errors = *errors_ptr;
     if (!errors) {
@@ -17,7 +16,7 @@ AddError(struct Errors **errors_ptr, unsigned int start_pos,
     }
 
     struct ErrorReport *report = calloc(1, sizeof(struct ErrorReport));
-    report->message = CopyString(message);
+    report->message = MStringCopy(message);
     report->start_pos = start_pos;
     report->end_pos = end_pos;
     if (errors->last) {
@@ -28,21 +27,19 @@ AddError(struct Errors **errors_ptr, unsigned int start_pos,
     }
 }
 
-void
-AddErrorF(struct Errors **errors_ptr, unsigned int start_pos,
-          unsigned int end_pos, const char *format, ...)
+void AddErrorF(struct Errors **errors_ptr, unsigned int start_pos,
+               unsigned int end_pos, const char *format, ...)
 {
     va_list ap;
     va_start(ap, format);
-    struct MString *message = StringPrintFV(format, ap);
+    struct MString *message = MStringPrintFV(format, ap);
     va_end(ap);
 
     AddError(errors_ptr, start_pos, end_pos, message);
-    FreeString(&message);
+    MStringFree(&message);
 }
 
-void
-FreeErrors(struct Errors **errors_ptr)
+void FreeErrors(struct Errors **errors_ptr)
 {
     struct Errors *errors = *errors_ptr;
     *errors_ptr = NULL;
@@ -51,15 +48,14 @@ FreeErrors(struct Errors **errors_ptr)
         struct ErrorReport *current = errors->first;
         while(current) {
             struct ErrorReport *next = current->next;
-            FreeString(&current->message);
+            MStringFree(&current->message);
             free(current);
             current = next;
         }
     }
 }
 
-struct ErrorReport *
-FirstError(struct Errors *errors)
+struct ErrorReport *FirstError(struct Errors *errors)
 {
     if (!errors) { return NULL; }
     return errors->first;
