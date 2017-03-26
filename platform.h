@@ -83,6 +83,46 @@ void FreeErrors(struct Errors **errors_ptr);
 struct ErrorReport *FirstError(struct Errors *errors);
 
 /*
+ * Lexer
+ */
+typedef enum {
+    TOK_EOF = 0,
+    TOK_ID,
+    TOK_INT_LITERAL,
+    TOK_TRUE,
+    TOK_FALSE,
+    TOK_LPAREN,
+    TOK_RPAREN,
+    TOK_FN,
+    TOK_IF,
+    TOK_PLUS,
+    TOK_MINUS,
+    TOK_STAR,
+    TOK_EQUALS,
+    TOK_ARROW,
+    TOK_LET,
+    TOK_REC,
+} MILLIE_TOKEN;
+
+struct MillieToken {
+    MILLIE_TOKEN type;
+    unsigned int start;
+    unsigned int length;
+};
+
+struct MillieTokens {
+    struct ArrayList *token_array; // of MillieToken
+    struct ArrayList *line_array;  // of int
+    struct MString *buffer;
+};
+
+void TokensFree(struct MillieTokens **tokens_ptr);
+struct MillieTokens *LexBuffer(struct MString *buffer, struct Errors **errors);
+void GetLineColumnForPosition(struct MillieTokens *tokens, unsigned int position,
+                              unsigned int *line, unsigned int *col);
+struct MString *ExtractLine(struct MillieTokens *tokens, unsigned int line);
+
+/*
  * Symbol Tables
  */
 typedef uint32_t Symbol;

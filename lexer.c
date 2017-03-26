@@ -2,40 +2,6 @@
 #include "platform.h"
 #endif
 
-/*
- * Lexer
- */
-typedef enum {
-    TOK_EOF = 0,
-    TOK_ID,
-    TOK_INT_LITERAL,
-    TOK_TRUE,
-    TOK_FALSE,
-    TOK_LPAREN,
-    TOK_RPAREN,
-    TOK_FN,
-    TOK_IF,
-    TOK_PLUS,
-    TOK_MINUS,
-    TOK_STAR,
-    TOK_EQUALS,
-    TOK_ARROW,
-    TOK_LET,
-    TOK_REC,
-} MILLIE_TOKEN;
-
-struct MillieToken {
-    MILLIE_TOKEN type;
-    unsigned int start;
-    unsigned int length;
-};
-
-struct MillieTokens {
-    struct ArrayList *token_array; // of MillieToken
-    struct ArrayList *line_array;  // of int
-    struct MString *buffer;
-};
-
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpadded"
 
@@ -46,29 +12,7 @@ struct KeywordToken {
 
 #pragma GCC diagnostic pop
 
-
-struct MillieTokens *CreateTokens(struct MString *buffer);
-void FreeTokens(struct MillieTokens **tokens_ptr);
-void AddToken(struct MillieTokens *tokens, MILLIE_TOKEN type,
-              unsigned int start, unsigned int length);
-int IsDigit(char c);
-int IsIdentifierCharacter(char c);
-int IsIdentifierStart(char c);
-void AddIntegerLiteral(struct MillieTokens *tokens, const char *start,
-                       unsigned int length, const char **ptr_ptr);
-int TryAddKeyword(struct KeywordToken keyword, struct MillieTokens *tokens,
-                  const char *start, unsigned int length, const char **ptr_ptr);
-int TryAddKeywords(struct KeywordToken *keywords, struct MillieTokens *tokens,
-                   const char *start, unsigned int length, const char **ptr_ptr);
-void AddIdentifierToken(struct MillieTokens *tokens, const char *start,
-                        unsigned int length, const char **ptr_ptr);
-struct MillieTokens *LexBuffer(struct MString *buffer, struct Errors **errors);
-void GetLineColumnForPosition(struct MillieTokens *tokens, unsigned int position,
-                              unsigned int *line, unsigned int *col);
-struct MString *ExtractLine(struct MillieTokens *tokens, unsigned int line);
-
-struct MillieTokens *
-CreateTokens(struct MString *buffer)
+static struct MillieTokens *_CreateTokens(struct MString *buffer)
 {
     struct MillieTokens *result = calloc(1, sizeof(struct MillieTokens));
     result->token_array = ArrayListCreate(sizeof(struct MillieToken), 200);
@@ -77,21 +21,8 @@ CreateTokens(struct MString *buffer)
     return result;
 }
 
-void
-FreeTokens(struct MillieTokens **tokens_ptr)
-{
-    struct MillieTokens *tokens = *tokens_ptr;
-    *tokens_ptr = NULL;
-
-    if (!tokens) { return; }
-    ArrayListFree(&tokens->token_array);
-    ArrayListFree(&tokens->line_array);
-    free(tokens);
-}
-
-void
-AddToken(struct MillieTokens *tokens, MILLIE_TOKEN type, unsigned int start,
-         unsigned int length)
+static void _AddToken(struct MillieTokens *tokens, MILLIE_TOKEN type,
+                      unsigned int start, unsigned int length)
 {
     struct MillieToken token;
     token.type = type;
@@ -101,14 +32,12 @@ AddToken(struct MillieTokens *tokens, MILLIE_TOKEN type, unsigned int start,
     ArrayListAdd(tokens->token_array, &token);
 }
 
-int
-IsDigit(char c)
+static int _IsDigit(char c)
 {
     return (c >= '0') && (c <= '9');
 }
 
-int
-IsIdentifierCharacter(char c)
+static int _IsIdentifierCharacter(char c)
 {
     return
         ((c >= '0') && (c <= '9')) ||
@@ -119,8 +48,7 @@ IsIdentifierCharacter(char c)
         (c == '\"');
 }
 
-int
-IsIdentifierStart(char c)
+static int _IsIdentifierStart(char c)
 {
     return
         ((c >= 'A') && (c <= 'Z')) ||
@@ -128,22 +56,21 @@ IsIdentifierStart(char c)
         (c == '_');
 }
 
-void
-AddIntegerLiteral(struct MillieTokens *tokens, const char *start,
-                  unsigned int length, const char **ptr_ptr)
+static void _AddIntegerLiteral(struct MillieTokens *tokens, const char *start,
+                               unsigned int length, const char **ptr_ptr)
 {
     const char *limit = start + length;
     const char *ptr = *ptr_ptr;
     const char *token_start = ptr;
 
     while (ptr < limit) {
-        if (!IsDigit(*ptr)) {
+        if (!_IsDigit(*ptr)) {
             break;
         }
         ptr++;
     }
 
-    AddToken(
+    _AddToken(
         tokens,
         TOK_INT_LITERAL,
         (unsigned int)(token_start - start),
@@ -152,9 +79,11 @@ AddIntegerLiteral(struct MillieTokens *tokens, const char *start,
     *ptr_ptr = ptr;
 }
 
-int
-TryAddKeyword(struct KeywordToken keyword, struct MillieTokens *tokens,
-              const char *start, unsigned int length, const char **ptr_ptr)
+static int _TryAddKeyword(struct KeywordToken keyword,
+                          struct MillieTokens *tokens,
+                          const char *start,
+                          unsigned int length,
+                          const char **ptr_ptr)
 {
     const char *ptr = *ptr_ptr;
     const char *limit = start + length;
@@ -164,11 +93,11 @@ TryAddKeyword(struct KeywordToken keyword, struct MillieTokens *tokens,
         keyword_str++;
     }
 
-    if (*keyword_str == '\0' && !IsIdentifierCharacter(*ptr)) {
+    if (*keyword_str == '\0' && !_IsIdentifierCharacter(*ptr)) {
         const char *token_start = *ptr_ptr;
         unsigned int pos = (unsigned int)(token_start - start);
         unsigned int len = (unsigned int)(ptr - token_start);
-        AddToken(tokens, keyword.token, pos, len);
+        _AddToken(tokens, keyword.token, pos, len);
         *ptr_ptr = ptr;
         return 1;
     }
@@ -176,12 +105,14 @@ TryAddKeyword(struct KeywordToken keyword, struct MillieTokens *tokens,
     return 0;
 }
 
-int
-TryAddKeywords(struct KeywordToken *keywords, struct MillieTokens *tokens,
-               const char *start, unsigned int length, const char **ptr_ptr)
+static int _TryAddKeywords(struct KeywordToken *keywords,
+                           struct MillieTokens *tokens,
+                           const char *start,
+                           unsigned int length,
+                           const char **ptr_ptr)
 {
     while(keywords->str) {
-        if (TryAddKeyword(*keywords, tokens, start, length, ptr_ptr)) {
+        if (_TryAddKeyword(*keywords, tokens, start, length, ptr_ptr)) {
             return 1;
         }
         keywords++;
@@ -190,22 +121,21 @@ TryAddKeywords(struct KeywordToken *keywords, struct MillieTokens *tokens,
     return 0;
 }
 
-void
-AddIdentifierToken(struct MillieTokens *tokens, const char *start,
-                   unsigned int length, const char **ptr_ptr)
+static void _AddIdentifierToken(struct MillieTokens *tokens, const char *start,
+                                unsigned int length, const char **ptr_ptr)
 {
     const char *limit = start + length;
     const char *ptr = *ptr_ptr;
     const char *token_start = ptr;
 
     while (ptr < limit) {
-        if (!IsIdentifierCharacter(*ptr)) {
+        if (!_IsIdentifierCharacter(*ptr)) {
             break;
         }
         ptr++;
     }
 
-    AddToken(
+    _AddToken(
         tokens,
         TOK_ID,
         (unsigned int)(token_start - start),
@@ -214,10 +144,20 @@ AddIdentifierToken(struct MillieTokens *tokens, const char *start,
     *ptr_ptr = ptr;
 }
 
-struct MillieTokens *
-LexBuffer(struct MString *buffer, struct Errors **errors)
+void TokensFree(struct MillieTokens **tokens_ptr)
 {
-    struct MillieTokens *tokens = CreateTokens(buffer);
+    struct MillieTokens *tokens = *tokens_ptr;
+    *tokens_ptr = NULL;
+
+    if (!tokens) { return; }
+    ArrayListFree(&tokens->token_array);
+    ArrayListFree(&tokens->line_array);
+    free(tokens);
+}
+
+struct MillieTokens *LexBuffer(struct MString *buffer, struct Errors **errors)
+{
+    struct MillieTokens *tokens = _CreateTokens(buffer);
     *errors = NULL;
 
     const unsigned int length = MStringLength(buffer);
@@ -231,19 +171,19 @@ LexBuffer(struct MString *buffer, struct Errors **errors)
 
         int error_now = 0;
         switch(*ptr) {
-        case '(': AddToken(tokens, TOK_LPAREN, pos, 1); ptr++; break;
-        case ')': AddToken(tokens, TOK_RPAREN, pos, 1); ptr++; break;
-        case '+': AddToken(tokens, TOK_PLUS, pos, 1); ptr++; break;
-        case '-': AddToken(tokens, TOK_MINUS, pos, 1); ptr++; break;
-        case '*': AddToken(tokens, TOK_STAR, pos, 1); ptr++; break;
+        case '(': _AddToken(tokens, TOK_LPAREN, pos, 1); ptr++; break;
+        case ')': _AddToken(tokens, TOK_RPAREN, pos, 1); ptr++; break;
+        case '+': _AddToken(tokens, TOK_PLUS, pos, 1); ptr++; break;
+        case '-': _AddToken(tokens, TOK_MINUS, pos, 1); ptr++; break;
+        case '*': _AddToken(tokens, TOK_STAR, pos, 1); ptr++; break;
         case '=':
             {
                 ptr++;
                 if (ptr - start < length && *ptr == '>') {
-                    AddToken(tokens, TOK_ARROW, pos, 2);
+                    _AddToken(tokens, TOK_ARROW, pos, 2);
                     ptr++;
                 } else {
-                    AddToken(tokens, TOK_EQUALS, pos, 1);
+                    _AddToken(tokens, TOK_EQUALS, pos, 1);
                 }
             }
             break;
@@ -266,8 +206,8 @@ LexBuffer(struct MString *buffer, struct Errors **errors)
                     { "fn", TOK_FN },
                     { NULL, 0 },
                 };
-                if (!TryAddKeywords(kws, tokens, start, length, &ptr)) {
-                    AddIdentifierToken(tokens, start, length, &ptr);
+                if (!_TryAddKeywords(kws, tokens, start, length, &ptr)) {
+                    _AddIdentifierToken(tokens, start, length, &ptr);
                 }
             }
             break;
@@ -278,8 +218,8 @@ LexBuffer(struct MString *buffer, struct Errors **errors)
                     { "if", TOK_IF },
                     { NULL, 0 },
                 };
-                if (!TryAddKeywords(kws, tokens, start, length, &ptr)) {
-                    AddIdentifierToken(tokens, start, length, &ptr);
+                if (!_TryAddKeywords(kws, tokens, start, length, &ptr)) {
+                    _AddIdentifierToken(tokens, start, length, &ptr);
                 }
             }
             break;
@@ -290,8 +230,8 @@ LexBuffer(struct MString *buffer, struct Errors **errors)
                     { "let", TOK_LET },
                     { NULL, 0 },
                 };
-                if (!TryAddKeywords(kws, tokens, start, length, &ptr)) {
-                    AddIdentifierToken(tokens, start, length, &ptr);
+                if (!_TryAddKeywords(kws, tokens, start, length, &ptr)) {
+                    _AddIdentifierToken(tokens, start, length, &ptr);
                 }
             }
             break;
@@ -302,8 +242,8 @@ LexBuffer(struct MString *buffer, struct Errors **errors)
                     { "rec", TOK_REC },
                     { NULL, 0 },
                 };
-                if (!TryAddKeywords(kws, tokens, start, length, &ptr)) {
-                    AddIdentifierToken(tokens, start, length, &ptr);
+                if (!_TryAddKeywords(kws, tokens, start, length, &ptr)) {
+                    _AddIdentifierToken(tokens, start, length, &ptr);
                 }
             }
             break;
@@ -314,17 +254,17 @@ LexBuffer(struct MString *buffer, struct Errors **errors)
                     { "true", TOK_TRUE },
                     { NULL, 0 },
                 };
-                if (!TryAddKeywords(kws, tokens, start, length, &ptr)) {
-                    AddIdentifierToken(tokens, start, length, &ptr);
+                if (!_TryAddKeywords(kws, tokens, start, length, &ptr)) {
+                    _AddIdentifierToken(tokens, start, length, &ptr);
                 }
             }
             break;
 
         default:
-            if (IsDigit(*ptr)) {
-                AddIntegerLiteral(tokens, start, length, &ptr);
-            } else if (IsIdentifierStart(*ptr)) {
-                AddIdentifierToken(tokens, start, length, &ptr);
+            if (_IsDigit(*ptr)) {
+                _AddIntegerLiteral(tokens, start, length, &ptr);
+            } else if (_IsIdentifierStart(*ptr)) {
+                _AddIdentifierToken(tokens, start, length, &ptr);
             } else {
                 error_now = 1;
                 ptr++;
