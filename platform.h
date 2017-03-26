@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,6 +39,7 @@ struct MString *MStringPrintFV(const char *format, va_list args);
 unsigned int MStringLength(struct MString *string);
 const char *MStringData(struct MString *string);
 unsigned int MStringHash32(struct MString *string);
+bool MStringEquals(struct MString *a, struct MString *b);
 
 /*
  * List functions
@@ -74,6 +76,17 @@ void AddErrorF(struct Errors **errors_ptr, unsigned int start_pos,
                unsigned int end_pos, const char *format, ...);
 void FreeErrors(struct Errors **errors_ptr);
 struct ErrorReport *FirstError(struct Errors *errors);
+
+/*
+ * Symbol Tables
+ */
+typedef uint32_t Symbol;
+#define INVALID_SYMBOL (0)
+struct SymbolTable;
+
+struct SymbolTable *SymbolTableCreate(void);
+void SymbolTableFree(struct SymbolTable **table_ptr);
+Symbol FindOrCreateSymbol(struct SymbolTable *table, struct MString *key);
 
 
 #define PLATFORM_INCLUDED

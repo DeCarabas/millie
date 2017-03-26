@@ -6,6 +6,7 @@
 #include "cityhash.c"
 #include "string.c"
 #include "errors.c"
+#include "symboltable.c"
 #include "lexer.c"
 
 

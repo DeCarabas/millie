@@ -137,3 +137,9 @@ unsigned int MStringHash32(struct MString *string)
 {
     return CityHash32(string->str, string->length);
 }
+
+bool MStringEquals(struct MString *a, struct MString *b)
+{
+    if (a->length != b->length) { return false; }
+    return memcmp(a->str, b->str, a->length) == 0;
+}
