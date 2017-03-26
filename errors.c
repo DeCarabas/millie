@@ -8,8 +8,8 @@ struct Errors {
 };
 
 void
-AddError(struct Errors **errors_ptr, int start_pos, int end_pos,
-         struct MString *message)
+AddError(struct Errors **errors_ptr, unsigned int start_pos,
+         unsigned int end_pos, struct MString *message)
 {
     struct Errors *errors = *errors_ptr;
     if (!errors) {
@@ -29,8 +29,8 @@ AddError(struct Errors **errors_ptr, int start_pos, int end_pos,
 }
 
 void
-AddErrorF(struct Errors **errors_ptr, int start_pos, int end_pos,
-          const char *format, ...)
+AddErrorF(struct Errors **errors_ptr, unsigned int start_pos,
+          unsigned int end_pos, const char *format, ...)
 {
     va_list ap;
     va_start(ap, format);

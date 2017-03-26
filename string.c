@@ -8,16 +8,19 @@ struct MString {
     const char *str;
 };
 
+struct MString *_AllocString(unsigned int length, char **buffer);
+
+
 struct MString *
-_AllocString(unsigned int length)
+_AllocString(unsigned int length, char **buffer)
 {
-    int string_length = length + 1;
-    size_t alloc_size = sizeof(struct MString) + string_length;
-    struct MString *result = calloc(1, alloc_size);
+    unsigned int string_length = length + 1;
+    unsigned int alloc_size = sizeof(struct MString) + string_length;
+    struct MString *result = calloc(1, (size_t)alloc_size);
 
     result->references = 1;
     result->length = length;
-    result->str = (char *)(result + 1);
+    result->str = *buffer = (char *)(result + 1);
 
     return result;
 }
@@ -25,9 +28,10 @@ _AllocString(unsigned int length)
 struct MString *
 CreateStringN(const char *str, unsigned int length)
 {
-    struct MString *result = _AllocString(length);
+    char *buffer;
+    struct MString *result = _AllocString(length, &buffer);
 
-    memcpy((char *)(result->str), str, length);
+    memcpy(buffer, str, length);
 
     return result;
 }
@@ -35,22 +39,7 @@ CreateStringN(const char *str, unsigned int length)
 struct MString *
 CreateString(char *str)
 {
-    return CreateStringN(str, strlen(str));
-}
-
-void
-CreateStringReferenceN(char *str, unsigned int length, struct MString *string)
-{
-    memset(string, 0, sizeof(struct MString));
-    string->references = -1;
-    string->length = length;
-    string->str = str;
-}
-
-void
-CreateStringReference(char *str, struct MString *string)
-{
-    CreateStringReferenceN(str, strlen(str), string);
+    return CreateStringN(str, (unsigned int)strlen(str));
 }
 
 void
@@ -92,8 +81,8 @@ StringCatV(int count, ...)
     }
     va_end(ap);
 
-    struct MString *result = _AllocString(total_length);
-    char *ptr = (char *)(result->str);
+    char *ptr;
+    struct MString *result = _AllocString(total_length, &ptr);
 
     va_start(ap, count);
     for(int i = 0; i < count; i++) {
@@ -115,18 +104,22 @@ StringCat(struct MString *first, struct MString *second)
 struct MString *
 StringPrintFV(const char *format, va_list args)
 {
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wformat-nonliteral"
     va_list ap;
     va_copy(ap, args);
     int total_size = vsnprintf(NULL, 0, format, ap);
     va_end(ap);
 
-    struct MString *result = _AllocString(total_size);
+    char *ptr;
+    struct MString *result = _AllocString((unsigned int)total_size, &ptr);
 
     va_copy(ap, args);
-    vsnprintf((char *)result->str, total_size, format, ap);
+    vsnprintf(ptr, total_size, format, ap);
     va_end(ap);
 
     return result;
+    #pragma GCC diagnostic pop
 }
 
 struct MString *

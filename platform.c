@@ -5,7 +5,7 @@
 /*
  * Assertion and failure
  */
-void Fail(char *message)
+NORETURN void Fail(char *message)
 {
     assert(0 && message);
     abort();
@@ -14,7 +14,7 @@ void Fail(char *message)
 /*
  * Memory Allocation
  */
-const size_t ARENA_SIZE = 2 * 1024 * 1024; // 2MB?
+#define ARENA_SIZE (2 * 1024 * 1024)
 struct ArenaBlock
 {
     char *start;
@@ -26,6 +26,11 @@ struct Arena
 {
     struct ArenaBlock *current;
 };
+
+struct Arena *MakeFreshArena(void);
+void FreeArena(struct Arena **arena);
+void *ArenaAllocate(struct Arena *arena, size_t size);
+
 
 struct Arena *
 MakeFreshArena()
@@ -72,7 +77,7 @@ ArenaAllocate(struct Arena *arena, size_t size)
 }
 
 struct ArrayList *
-CreateArrayList(unsigned int item_size, unsigned int capacity)
+CreateArrayList(size_t item_size, unsigned int capacity)
 {
     if (capacity == 0) { capacity = 4; }
     struct ArrayList *result = calloc(1, sizeof(struct ArrayList));
@@ -104,7 +109,7 @@ ArrayListIndex(struct ArrayList *array, unsigned int index)
     return ((char *)array->buffer) + (index * array->item_size);
 }
 
-int
+unsigned int
 ArrayListAdd(struct ArrayList *array, void *item)
 {
     if (array->item_count == array->capacity) {
@@ -113,7 +118,7 @@ ArrayListAdd(struct ArrayList *array, void *item)
         array->buffer = realloc(array->buffer, new_size);
     }
 
-    int new_index = array->item_count;
+    unsigned int new_index = array->item_count;
     array->item_count += 1;
     void *item_ptr = ArrayListIndex(array, new_index);
     memcpy(item_ptr, item, array->item_size);

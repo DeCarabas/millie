@@ -36,6 +36,37 @@ struct MillieTokens {
     struct MString *buffer;
 };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
+
+struct KeywordToken {
+    const char *str;
+    MILLIE_TOKEN token;
+};
+
+#pragma GCC diagnostic pop
+
+
+struct MillieTokens *CreateTokens(struct MString *buffer);
+void FreeTokens(struct MillieTokens **tokens_ptr);
+void AddToken(struct MillieTokens *tokens, MILLIE_TOKEN type,
+              unsigned int start, unsigned int length);
+int IsDigit(char c);
+int IsIdentifierCharacter(char c);
+int IsIdentifierStart(char c);
+void AddIntegerLiteral(struct MillieTokens *tokens, const char *start,
+                       unsigned int length, const char **ptr_ptr);
+int TryAddKeyword(struct KeywordToken keyword, struct MillieTokens *tokens,
+                  const char *start, unsigned int length, const char **ptr_ptr);
+int TryAddKeywords(struct KeywordToken *keywords, struct MillieTokens *tokens,
+                   const char *start, unsigned int length, const char **ptr_ptr);
+void AddIdentifierToken(struct MillieTokens *tokens, const char *start,
+                        unsigned int length, const char **ptr_ptr);
+struct MillieTokens *LexBuffer(struct MString *buffer, struct Errors **errors);
+void GetLineColumnForPosition(struct MillieTokens *tokens, unsigned int position,
+                              unsigned int *line, unsigned int *col);
+struct MString *ExtractLine(struct MillieTokens *tokens, unsigned int line);
+
 struct MillieTokens *
 CreateTokens(struct MString *buffer)
 {
@@ -98,8 +129,8 @@ IsIdentifierStart(char c)
 }
 
 void
-AddIntegerLiteral(struct MillieTokens *tokens, const char *start, int length,
-                  const char **ptr_ptr)
+AddIntegerLiteral(struct MillieTokens *tokens, const char *start,
+                  unsigned int length, const char **ptr_ptr)
 {
     const char *limit = start + length;
     const char *ptr = *ptr_ptr;
@@ -112,17 +143,18 @@ AddIntegerLiteral(struct MillieTokens *tokens, const char *start, int length,
         ptr++;
     }
 
-    AddToken(tokens, TOK_INT_LITERAL, token_start - start, ptr - token_start);
+    AddToken(
+        tokens,
+        TOK_INT_LITERAL,
+        (unsigned int)(token_start - start),
+        (unsigned int)(ptr - token_start)
+    );
     *ptr_ptr = ptr;
 }
 
-struct KeywordToken {
-    const char *str;
-    MILLIE_TOKEN token;
-};
-
 int
-TryAddKeyword(struct KeywordToken keyword, struct MillieTokens *tokens, const char *start, int length, const char **ptr_ptr)
+TryAddKeyword(struct KeywordToken keyword, struct MillieTokens *tokens,
+              const char *start, unsigned int length, const char **ptr_ptr)
 {
     const char *ptr = *ptr_ptr;
     const char *limit = start + length;
@@ -134,8 +166,8 @@ TryAddKeyword(struct KeywordToken keyword, struct MillieTokens *tokens, const ch
 
     if (*keyword_str == '\0' && !IsIdentifierCharacter(*ptr)) {
         const char *token_start = *ptr_ptr;
-        int pos = token_start - start;
-        int len = ptr - token_start;
+        unsigned int pos = (unsigned int)(token_start - start);
+        unsigned int len = (unsigned int)(ptr - token_start);
         AddToken(tokens, keyword.token, pos, len);
         *ptr_ptr = ptr;
         return 1;
@@ -145,7 +177,8 @@ TryAddKeyword(struct KeywordToken keyword, struct MillieTokens *tokens, const ch
 }
 
 int
-TryAddKeywords(struct KeywordToken *keywords, struct MillieTokens *tokens, const char *start, int length, const char **ptr_ptr)
+TryAddKeywords(struct KeywordToken *keywords, struct MillieTokens *tokens,
+               const char *start, unsigned int length, const char **ptr_ptr)
 {
     while(keywords->str) {
         if (TryAddKeyword(*keywords, tokens, start, length, ptr_ptr)) {
@@ -158,8 +191,8 @@ TryAddKeywords(struct KeywordToken *keywords, struct MillieTokens *tokens, const
 }
 
 void
-AddIdentifierToken(struct MillieTokens *tokens, const char *start, int length,
-                   const char **ptr_ptr)
+AddIdentifierToken(struct MillieTokens *tokens, const char *start,
+                   unsigned int length, const char **ptr_ptr)
 {
     const char *limit = start + length;
     const char *ptr = *ptr_ptr;
@@ -172,7 +205,12 @@ AddIdentifierToken(struct MillieTokens *tokens, const char *start, int length,
         ptr++;
     }
 
-    AddToken(tokens, TOK_ID, token_start - start, ptr - token_start);
+    AddToken(
+        tokens,
+        TOK_ID,
+        (unsigned int)(token_start - start),
+        (unsigned int)(ptr - token_start)
+    );
     *ptr_ptr = ptr;
 }
 
@@ -182,14 +220,14 @@ LexBuffer(struct MString *buffer, struct Errors **errors)
     struct MillieTokens *tokens = CreateTokens(buffer);
     *errors = NULL;
 
-    const int length = StringLength(buffer);
+    const unsigned int length = StringLength(buffer);
     const char *start = StringData(buffer);
     const char *ptr = start;
     unsigned int error_start = UINT_MAX;
 
     while(ptr - start < length) {
         const char *token_start = ptr;
-        unsigned int pos = token_start - start;
+        unsigned int pos = (unsigned int)(token_start - start);
 
         int error_now = 0;
         switch(*ptr) {
@@ -306,7 +344,7 @@ LexBuffer(struct MString *buffer, struct Errors **errors)
             AddError(errors, error_start, pos, msg);
             FreeString(&msg);
 
-            error_start = -1;
+            error_start = UINT_MAX;
         }
     }
 
@@ -321,7 +359,7 @@ GetLineColumnForPosition(struct MillieTokens *tokens, unsigned int position,
     int min = 0;
     int max = ((int)tokens->line_array->item_count) - 1;
     while(min <= max) {
-        unsigned int mid = (max + min) / 2;
+        int mid = (max + min) / 2;
         unsigned int line_position = line_array[mid];
         if (line_position == position) {
             min = mid;
@@ -333,7 +371,7 @@ GetLineColumnForPosition(struct MillieTokens *tokens, unsigned int position,
         }
     }
 
-    *line = min + 1;
+    *line = (unsigned int)(min + 1);
     if (min > 0) {
         *col = position - line_array[min - 1];
     } else {
@@ -344,8 +382,8 @@ GetLineColumnForPosition(struct MillieTokens *tokens, unsigned int position,
 struct MString *
 ExtractLine(struct MillieTokens *tokens, unsigned int line)
 {
-    if (line <= 0) {
-        Fail("Expect line >= 0");
+    if (line == 0) {
+        Fail("Expect line > 0");
     }
 
     struct ArrayList *line_array = tokens->line_array;
@@ -353,14 +391,14 @@ ExtractLine(struct MillieTokens *tokens, unsigned int line)
         return CopyString(tokens->buffer);
     }
 
-    int *line_ends = (int *)(line_array->buffer);
+    unsigned int *line_ends = (unsigned int *)(line_array->buffer);
 
-    int line_index = line - 1;
-    int line_start = 0;
+    unsigned int line_index = line - 1;
+    unsigned int line_start = 0;
     if (line_index > 0) {
         line_start = line_ends[line_index - 1] + 1;
     }
-    int line_end = line_ends[line_index];
+    unsigned int line_end = line_ends[line_index];
 
     return CreateStringN(
         StringData(tokens->buffer) + line_start,

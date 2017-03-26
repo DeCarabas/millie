@@ -25,6 +25,10 @@ typedef enum {
 
 typedef void *Identifier;
 
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
+
 struct Expression {
     ExpressionType type;
     Identifier id;
@@ -40,6 +44,19 @@ struct Expression {
         struct Expression *let_body;
     };
 };
+
+#pragma GCC diagnostic pop
+
+struct Expression *MakeLambda(struct Arena *arena, Identifier variable,
+                              struct Expression *body);
+struct Expression *MakeIdentifier(struct Arena *arena, Identifier id);
+struct Expression *MakeApply(struct Arena *arena, struct Expression *func_expr,
+                             struct Expression *arg_expr);
+struct Expression *MakeLet(struct Arena *arena, Identifier variable,
+                           struct Expression *value, struct Expression *body);
+struct Expression *MakeLetRec(struct Arena *arena, Identifier variable,
+                              struct Expression *value, struct Expression *body);
+
 
 struct Expression *
 MakeLambda(struct Arena *arena, Identifier variable, struct Expression *body)
@@ -127,6 +144,26 @@ struct NonGenericTypeList {
     struct TypeExp *type;
 };
 
+struct NonGenericTypeList *ExtendNonGenericTypeList(
+    struct Arena *arena,
+    struct TypeExp *type,
+    struct NonGenericTypeList *non_generics
+);
+int IsTypeContainedWithin(struct TypeExp *a, struct TypeExp *b);
+int IsTypeNonGeneric(struct TypeExp *a,
+                     struct NonGenericTypeList *non_generics);
+struct TypeExp *PruneTypeExp(struct TypeExp *type);
+struct TypeExp *MakeTypeVar(struct Arena *arena);
+struct TypeExp *MakeFunctionTypeExp(struct Arena *arena,
+                                    struct TypeExp *from_type,
+                                    struct TypeExp *to_type);
+struct TypeExp *MakeFreshTypeExpCopy(struct Arena *arena,
+                                     struct TypeExp *type,
+                                     struct NonGenericTypeList *non_generics);
+void MakeFreshTypeExpCleanup(struct TypeExp *type);
+struct TypeExp *MakeFreshTypeExp(struct Arena *arena, struct TypeExp *type,
+                                 struct NonGenericTypeList *non_generics);
+
 struct NonGenericTypeList *
 ExtendNonGenericTypeList(struct Arena *arena, struct TypeExp *type,
                          struct NonGenericTypeList *non_generics)
@@ -191,7 +228,8 @@ MakeFunctionTypeExp(struct Arena *arena, struct TypeExp *from_type,
     return result;
 }
 
-struct TypeExp *TYPEEXP_NON_GENERIC_MARKER = (struct TypeExp *)(-1);
+static struct TypeExp *TYPEEXP_NON_GENERIC_MARKER =
+    (struct TypeExp *)(-1);
 
 struct TypeExp *
 MakeFreshTypeExpCopy(struct Arena *arena, struct TypeExp *type,
@@ -260,8 +298,10 @@ MakeFreshTypeExp(struct Arena *arena, struct TypeExp *type,
     return fresh_type;
 }
 
-struct TypeExp IntegerTypeExp = { TYPEEXP_OPERATOR, -1, "int", {NULL}, {NULL}};
-struct TypeExp BooleanTypeExp = { TYPEEXP_OPERATOR, -2, "bool", {NULL}, {NULL}};
+static struct TypeExp IntegerTypeExp =
+    { TYPEEXP_OPERATOR, -1, "int", {NULL}, {NULL}};
+static struct TypeExp BooleanTypeExp =
+    { TYPEEXP_OPERATOR, -2, "bool", {NULL}, {NULL}};
 
 
 /*
@@ -272,6 +312,14 @@ struct TypeEnvironment {
     Identifier id;
     struct TypeExp *type;
 };
+
+struct TypeEnvironment *BindType(struct Arena *arena,
+                                 struct TypeEnvironment *parent,
+                                 Identifier id,
+                                 struct TypeExp *type);
+struct TypeExp *LookupType(struct Arena *arena, struct TypeEnvironment *env,
+                           Identifier id,
+                           struct NonGenericTypeList *non_generics);
 
 struct TypeEnvironment *
 BindType(struct Arena *arena, struct TypeEnvironment *parent, Identifier id,
@@ -305,6 +353,15 @@ struct CheckContext {
     struct Arena *arena;
     struct Errors *errors;
 };
+
+struct CheckContext *MakeNewCheckContext(struct Arena *arena);
+void ReportTypeError(struct CheckContext *context, struct Expression *node,
+                     char *error);
+void Unify(struct CheckContext *context, struct Expression *node,
+           struct TypeExp *type_one, struct TypeExp *type_two);
+struct TypeExp *Analyze(struct CheckContext *context, struct Expression *node,
+                        struct TypeEnvironment *env,
+                        struct NonGenericTypeList *non_generics);
 
 struct CheckContext *
 MakeNewCheckContext(struct Arena *arena)
@@ -383,7 +440,6 @@ Analyze(struct CheckContext *context, struct Expression *node,
             }
             return type;
         }
-        break;
     case EXP_APPLY:
         {
             struct TypeExp *function_type = Analyze(
@@ -413,7 +469,6 @@ Analyze(struct CheckContext *context, struct Expression *node,
                 function_type);
             return result_type;
         }
-        break;
     case EXP_LAMBDA:
         {
             struct TypeExp *arg_type = MakeTypeVar(context->arena);
@@ -436,7 +491,6 @@ Analyze(struct CheckContext *context, struct Expression *node,
             );
             return MakeFunctionTypeExp(context->arena, arg_type, result_type);
         }
-        break;
     case EXP_LET:
         {
             struct TypeExp *defn_type = Analyze(
@@ -453,7 +507,6 @@ Analyze(struct CheckContext *context, struct Expression *node,
             );
             return Analyze(context, node->let_body, new_env, non_generics);
         }
-        break;
     case EXP_LETREC:
         {
             struct TypeExp *new_type = MakeTypeVar(context->arena);
@@ -477,7 +530,6 @@ Analyze(struct CheckContext *context, struct Expression *node,
             Unify(context, node, new_type, defn_type);
             return Analyze(context, node->let_body, new_env, non_generics);
         }
-        break;
     case EXP_INTEGER_CONSTANT:
         return &IntegerTypeExp;
     case EXP_TRUE:
@@ -500,9 +552,10 @@ ParseExpression(struct Arena *arena, struct MillieTokens *tokens);
  * Driver
  */
 
-void
-PrintTypeExpression(struct TypeExp *type);
-
+void PrintTypeExpression(struct TypeExp *type);
+void PrintErrors(const char *fname, struct MillieTokens *tokens,
+                 struct Errors *errors);
+void PrintTokens(struct MillieTokens *tokens);
 
 void
 PrintErrors(const char *fname, struct MillieTokens *tokens,
@@ -535,7 +588,7 @@ PrintErrors(const char *fname, struct MillieTokens *tokens,
 
         struct MString *line = ExtractLine(tokens, start_line);
         if (end_line != start_line) {
-            end_col = (int)StringLength(line);
+            end_col = StringLength(line);
         }
         printf("%s\n", StringData(line));
         for(unsigned int i = 1; i <= StringLength(line); i++) {
@@ -556,7 +609,8 @@ PrintErrors(const char *fname, struct MillieTokens *tokens,
     }
 }
 
-void PrintTokens(struct MillieTokens *tokens)
+void
+PrintTokens(struct MillieTokens *tokens)
 {
     for(unsigned int i = 0; i < tokens->token_array->item_count; i++) {
         struct MillieToken token;

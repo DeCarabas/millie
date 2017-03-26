@@ -6,10 +6,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define NORETURN  __attribute__((noreturn))
+
 /*
  * Assertion and failure
  */
 void Fail(char *message);
+
+/*
+ * Memory allocation
+ */
 
 /*
  * String functions
@@ -31,17 +37,17 @@ const char *StringData(struct MString *string);
  * List functions
  */
 struct ArrayList {
-    unsigned int item_size;
     unsigned int item_count;
     unsigned int capacity;
+    size_t item_size;
     void *buffer;
 };
 
-struct ArrayList *CreateArrayList(unsigned int item_size,
+struct ArrayList *CreateArrayList(size_t item_size,
                                   unsigned int capacity);
 void FreeArrayList(struct ArrayList **array_ptr);
 void *ArrayListIndex(struct ArrayList *array, unsigned int index);
-int ArrayListAdd(struct ArrayList *array, void *item);
+unsigned int ArrayListAdd(struct ArrayList *array, void *item);
 
 
 /*
@@ -50,16 +56,16 @@ int ArrayListAdd(struct ArrayList *array, void *item);
 struct ErrorReport {
     struct ErrorReport *next;
     struct MString *message;
-    int start_pos;
-    int end_pos;
+    unsigned int start_pos;
+    unsigned int end_pos;
 };
 
 struct Errors;
 
-void AddError(struct Errors **errors_ptr, int start_pos, int end_pos,
-              struct MString *message);
-void AddErrorF(struct Errors **errors_ptr, int start_pos, int end_pos,
-               const char *format, ...);
+void AddError(struct Errors **errors_ptr, unsigned int start_pos,
+              unsigned int end_pos, struct MString *message);
+void AddErrorF(struct Errors **errors_ptr, unsigned int start_pos,
+               unsigned int end_pos, const char *format, ...);
 void FreeErrors(struct Errors **errors_ptr);
 struct ErrorReport *FirstError(struct Errors *errors);
 
