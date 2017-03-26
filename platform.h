@@ -17,6 +17,11 @@ void Fail(char *message);
 /*
  * Memory allocation
  */
+struct Arena;
+
+struct Arena *MakeFreshArena(void);
+void FreeArena(struct Arena **arena);
+void *ArenaAllocate(struct Arena *arena, size_t size);
 
 /*
  * Hash functions
@@ -51,9 +56,9 @@ struct ArrayList {
     void *buffer;
 };
 
-struct ArrayList *CreateArrayList(size_t item_size,
+struct ArrayList *ArrayListCreate(size_t item_size,
                                   unsigned int capacity);
-void FreeArrayList(struct ArrayList **array_ptr);
+void ArrayListFree(struct ArrayList **array_ptr);
 void *ArrayListIndex(struct ArrayList *array, unsigned int index);
 unsigned int ArrayListAdd(struct ArrayList *array, void *item);
 
@@ -87,6 +92,47 @@ struct SymbolTable;
 struct SymbolTable *SymbolTableCreate(void);
 void SymbolTableFree(struct SymbolTable **table_ptr);
 Symbol FindOrCreateSymbol(struct SymbolTable *table, struct MString *key);
+
+/*
+ * AST
+ */
+typedef enum {
+    EXP_INVALID = 0,
+    EXP_LAMBDA = 1,
+    EXP_IDENTIFIER = 2,
+    EXP_APPLY = 3,
+    EXP_LET = 4,
+    EXP_LETREC = 5,
+    EXP_INTEGER_CONSTANT = 6,
+    EXP_TRUE = 7,
+    EXP_FALSE = 8,
+} ExpressionType;
+
+struct Expression {
+    ExpressionType type;
+    Symbol id;
+    union
+    {
+        struct Expression *apply_function;
+        struct Expression *lambda_body;
+        struct Expression *let_value;
+    };
+    union
+    {
+        struct Expression *apply_argument;
+        struct Expression *let_body;
+    };
+};
+
+struct Expression *MakeLambda(struct Arena *arena, Symbol variable,
+                              struct Expression *body);
+struct Expression *MakeIdentifier(struct Arena *arena, Symbol id);
+struct Expression *MakeApply(struct Arena *arena, struct Expression *func_expr,
+                             struct Expression *arg_expr);
+struct Expression *MakeLet(struct Arena *arena, Symbol variable,
+                           struct Expression *value, struct Expression *body);
+struct Expression *MakeLetRec(struct Arena *arena, Symbol variable,
+                              struct Expression *value, struct Expression *body);
 
 
 #define PLATFORM_INCLUDED

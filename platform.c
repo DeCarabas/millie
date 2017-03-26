@@ -27,19 +27,12 @@ struct Arena
     struct ArenaBlock *current;
 };
 
-struct Arena *MakeFreshArena(void);
-void FreeArena(struct Arena **arena);
-void *ArenaAllocate(struct Arena *arena, size_t size);
-
-
-struct Arena *
-MakeFreshArena()
+struct Arena *MakeFreshArena()
 {
     return calloc(1, sizeof(struct Arena));
 }
 
-void
-FreeArena(struct Arena **arena)
+void FreeArena(struct Arena **arena)
 {
     if (*arena) {
         struct ArenaBlock *block = (*arena)->current;
@@ -53,8 +46,7 @@ FreeArena(struct Arena **arena)
     *arena = NULL;
 }
 
-void *
-ArenaAllocate(struct Arena *arena, size_t size)
+void *ArenaAllocate(struct Arena *arena, size_t size)
 {
     if (size > ARENA_SIZE) {
         Fail("Allocation too big.");
@@ -76,8 +68,7 @@ ArenaAllocate(struct Arena *arena, size_t size)
     return result;
 }
 
-struct ArrayList *
-CreateArrayList(size_t item_size, unsigned int capacity)
+struct ArrayList *ArrayListCreate(size_t item_size, unsigned int capacity)
 {
     if (capacity == 0) { capacity = 4; }
     struct ArrayList *result = calloc(1, sizeof(struct ArrayList));
@@ -88,8 +79,7 @@ CreateArrayList(size_t item_size, unsigned int capacity)
     return result;
 }
 
-void
-FreeArrayList(struct ArrayList **array_ptr)
+void ArrayListFree(struct ArrayList **array_ptr)
 {
     struct ArrayList *array = *array_ptr;
     *array_ptr = NULL;
@@ -100,8 +90,7 @@ FreeArrayList(struct ArrayList **array_ptr)
 }
 
 
-void *
-ArrayListIndex(struct ArrayList *array, unsigned int index)
+void *ArrayListIndex(struct ArrayList *array, unsigned int index)
 {
     if (index >= array->item_count) {
         Fail("Attempt to access outside array bounds");
@@ -109,8 +98,7 @@ ArrayListIndex(struct ArrayList *array, unsigned int index)
     return ((char *)array->buffer) + (index * array->item_size);
 }
 
-unsigned int
-ArrayListAdd(struct ArrayList *array, void *item)
+unsigned int ArrayListAdd(struct ArrayList *array, void *item)
 {
     if (array->item_count == array->capacity) {
         array->capacity *= 2;

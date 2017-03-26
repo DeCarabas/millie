@@ -71,8 +71,8 @@ struct MillieTokens *
 CreateTokens(struct MString *buffer)
 {
     struct MillieTokens *result = calloc(1, sizeof(struct MillieTokens));
-    result->token_array = CreateArrayList(sizeof(struct MillieToken), 200);
-    result->line_array = CreateArrayList(sizeof(unsigned int), 100);
+    result->token_array = ArrayListCreate(sizeof(struct MillieToken), 200);
+    result->line_array = ArrayListCreate(sizeof(unsigned int), 100);
     result->buffer = MStringCopy(buffer);
     return result;
 }
@@ -84,8 +84,8 @@ FreeTokens(struct MillieTokens **tokens_ptr)
     *tokens_ptr = NULL;
 
     if (!tokens) { return; }
-    FreeArrayList(&tokens->token_array);
-    FreeArrayList(&tokens->line_array);
+    ArrayListFree(&tokens->token_array);
+    ArrayListFree(&tokens->line_array);
     free(tokens);
 }
 

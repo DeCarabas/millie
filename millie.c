@@ -8,112 +8,8 @@
 #include "errors.c"
 #include "symboltable.c"
 #include "lexer.c"
+#include "ast.c"
 
-
-
-/*
- * Abstract Syntax Tree
- */
-typedef enum {
-    EXP_INVALID = 0,
-    EXP_LAMBDA = 1,
-    EXP_IDENTIFIER = 2,
-    EXP_APPLY = 3,
-    EXP_LET = 4,
-    EXP_LETREC = 5,
-    EXP_INTEGER_CONSTANT = 6,
-    EXP_TRUE = 7,
-    EXP_FALSE = 8,
-} ExpressionType;
-
-typedef void *Identifier;
-
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpadded"
-
-struct Expression {
-    ExpressionType type;
-    Identifier id;
-    union
-    {
-        struct Expression *apply_function;
-        struct Expression *lambda_body;
-        struct Expression *let_value;
-    };
-    union
-    {
-        struct Expression *apply_argument;
-        struct Expression *let_body;
-    };
-};
-
-#pragma GCC diagnostic pop
-
-struct Expression *MakeLambda(struct Arena *arena, Identifier variable,
-                              struct Expression *body);
-struct Expression *MakeIdentifier(struct Arena *arena, Identifier id);
-struct Expression *MakeApply(struct Arena *arena, struct Expression *func_expr,
-                             struct Expression *arg_expr);
-struct Expression *MakeLet(struct Arena *arena, Identifier variable,
-                           struct Expression *value, struct Expression *body);
-struct Expression *MakeLetRec(struct Arena *arena, Identifier variable,
-                              struct Expression *value, struct Expression *body);
-
-
-struct Expression *
-MakeLambda(struct Arena *arena, Identifier variable, struct Expression *body)
-{
-    struct Expression *result = ArenaAllocate(arena, sizeof(struct Expression));
-    result->type = EXP_LAMBDA;
-    result->id = variable;
-    result->lambda_body = body;
-    return result;
-}
-
-struct Expression *
-MakeIdentifier(struct Arena *arena, Identifier id)
-{
-    struct Expression *result = ArenaAllocate(arena, sizeof(struct Expression));
-    result->type = EXP_IDENTIFIER;
-    result->id = id;
-    return result;
-}
-
-struct Expression *
-MakeApply(struct Arena *arena, struct Expression *func_expr,
-          struct Expression *arg_expr)
-{
-    struct Expression *result = ArenaAllocate(arena, sizeof(struct Expression));
-    result->type = EXP_APPLY;
-    result->apply_function = func_expr;
-    result->apply_argument = arg_expr;
-    return result;
-}
-
-struct Expression *
-MakeLet(struct Arena *arena, Identifier variable, struct Expression *value,
-        struct Expression *body)
-{
-    struct Expression *result = ArenaAllocate(arena, sizeof(struct Expression));
-    result->type = EXP_LET;
-    result->id = variable;
-    result->let_value = value;
-    result->let_body = body;
-    return result;
-}
-
-struct Expression *
-MakeLetRec(struct Arena *arena, Identifier variable, struct Expression *value,
-           struct Expression *body)
-{
-    struct Expression *result = ArenaAllocate(arena, sizeof(struct Expression));
-    result->type = EXP_LETREC;
-    result->id = variable;
-    result->let_value = value;
-    result->let_body = body;
-    return result;
-}
 
 /*
  * Type Variables
@@ -310,22 +206,28 @@ static struct TypeExp BooleanTypeExp =
 /*
  * Type Environments
  */
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
+
 struct TypeEnvironment {
     struct TypeEnvironment *parent;
-    Identifier id;
     struct TypeExp *type;
+    Symbol id;
 };
+
+#pragma GCC diagnostic pop
 
 struct TypeEnvironment *BindType(struct Arena *arena,
                                  struct TypeEnvironment *parent,
-                                 Identifier id,
+                                 Symbol id,
                                  struct TypeExp *type);
 struct TypeExp *LookupType(struct Arena *arena, struct TypeEnvironment *env,
-                           Identifier id,
+                           Symbol id,
                            struct NonGenericTypeList *non_generics);
 
 struct TypeEnvironment *
-BindType(struct Arena *arena, struct TypeEnvironment *parent, Identifier id,
+BindType(struct Arena *arena, struct TypeEnvironment *parent, Symbol id,
          struct TypeExp *type)
 {
     struct TypeEnvironment *result;
@@ -337,7 +239,7 @@ BindType(struct Arena *arena, struct TypeEnvironment *parent, Identifier id,
 }
 
 struct TypeExp *
-LookupType(struct Arena *arena, struct TypeEnvironment *env, Identifier id,
+LookupType(struct Arena *arena, struct TypeEnvironment *env, Symbol id,
            struct NonGenericTypeList *non_generics)
 {
     while(env != NULL) {
