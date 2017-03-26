@@ -17,6 +17,8 @@ typedef enum {
     TOK_IF,
     TOK_PLUS,
     TOK_MINUS,
+    TOK_STAR,
+    TOK_EQUALS,
     TOK_ARROW,
     TOK_LET,
     TOK_REC,
@@ -195,17 +197,16 @@ LexBuffer(struct MString *buffer, struct Errors **errors)
         case ')': AddToken(tokens, TOK_RPAREN, pos, 1); ptr++; break;
         case '+': AddToken(tokens, TOK_PLUS, pos, 1); ptr++; break;
         case '-': AddToken(tokens, TOK_MINUS, pos, 1); ptr++; break;
+        case '*': AddToken(tokens, TOK_STAR, pos, 1); ptr++; break;
         case '=':
             {
-                struct KeywordToken kws[] = {
-                    { "=>", TOK_ARROW },
-                    { NULL, 0 },
-                };
-                if (TryAddKeywords(kws, tokens, start, length, &ptr)) {
-                    break;
-                }
-                error_now = 1;
                 ptr++;
+                if (ptr - start < length && *ptr == '>') {
+                    AddToken(tokens, TOK_ARROW, pos, 2);
+                    ptr++;
+                } else {
+                    AddToken(tokens, TOK_EQUALS, pos, 1);
+                }
             }
             break;
 

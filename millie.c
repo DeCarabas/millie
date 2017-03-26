@@ -566,7 +566,7 @@ void PrintTokens(struct MillieTokens *tokens)
             StringData(tokens->buffer) + token.start,
             token.length
         );
-        printf("%03d: %s", token.type, StringData(substr));
+        printf("%03d: %s\n", token.type, StringData(substr));
         FreeString(&substr);
     }
 }
