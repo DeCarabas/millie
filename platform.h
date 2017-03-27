@@ -22,6 +22,7 @@ struct Arena;
 struct Arena *MakeFreshArena(void);
 void FreeArena(struct Arena **arena);
 void *ArenaAllocate(struct Arena *arena, size_t size);
+size_t ArenaAllocated(struct Arena *arena);
 
 /*
  * Hash functions

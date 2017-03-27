@@ -71,6 +71,17 @@ void *ArenaAllocate(struct Arena *arena, size_t size)
     return result;
 }
 
+size_t ArenaAllocated(struct Arena *arena)
+{
+    struct ArenaBlock *block = arena->current;
+    size_t allocated = 0;
+    while(block) {
+        allocated += (size_t)(block->start - block->arena);
+        block = block->next;
+    }
+    return allocated;
+}
+
 struct ArrayList *ArrayListCreate(size_t item_size, unsigned int capacity)
 {
     if (capacity == 0) { capacity = 4; }

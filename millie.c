@@ -636,6 +636,8 @@ int main()
 
     PrintTree(expression, 0);
     printf("\n");
+    printf("Arena: %lu bytes used\n", ArenaAllocated(arena));
+    FreeArena(&arena);
 
     /* struct CheckContext *context = MakeNewCheckContext(arena); */
     /* struct Expression *node = ParseExpression(arena, tokens); */
