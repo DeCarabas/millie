@@ -12,9 +12,9 @@ struct MString *_MStringAlloc(unsigned int length, char **buffer);
 
 struct MString *_MStringAlloc(unsigned int length, char **buffer)
 {
-    unsigned int string_length = length + 1;
+    unsigned int string_length = length + 1; // ALWAYS NULL TERMINATE
     unsigned int alloc_size = sizeof(struct MString) + string_length;
-    struct MString *result = calloc(1, (size_t)alloc_size);
+    struct MString *result = calloc((size_t)alloc_size, 1);
 
     result->references = 1;
     result->length = length;
@@ -33,7 +33,7 @@ struct MString *MStringCreateN(const char *str, unsigned int length)
     return result;
 }
 
-struct MString *MStringCreate(char *str)
+struct MString *MStringCreate(const char *str)
 {
     return MStringCreateN(str, (unsigned int)strlen(str));
 }

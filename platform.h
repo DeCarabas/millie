@@ -33,7 +33,7 @@ uint32_t CityHash32(const char *s, size_t len);
  */
 struct MString;
 
-struct MString *MStringCreate(char *str);
+struct MString *MStringCreate(const char *str);
 struct MString *MStringCreateN(const char *str, unsigned int length);
 void MStringFree(struct MString **string_ptr);
 struct MString *MStringCopy(struct MString *string);
@@ -79,6 +79,8 @@ void AddError(struct Errors **errors_ptr, unsigned int start_pos,
               unsigned int end_pos, struct MString *message);
 void AddErrorF(struct Errors **errors_ptr, unsigned int start_pos,
                unsigned int end_pos, const char *format, ...);
+void AddErrorFV(struct Errors **errors_ptr, unsigned int start_pos,
+                unsigned int end_pos, const char *format, va_list args);
 void FreeErrors(struct Errors **errors_ptr);
 struct ErrorReport *FirstError(struct Errors *errors);
 
@@ -87,21 +89,29 @@ struct ErrorReport *FirstError(struct Errors *errors);
  */
 typedef enum {
     TOK_EOF = 0,
-    TOK_ID,
+
+    TOK_FIRST_UNARY,
+    TOK_ID = TOK_FIRST_UNARY,
     TOK_INT_LITERAL,
     TOK_TRUE,
     TOK_FALSE,
     TOK_LPAREN,
+    TOK_PLUS,  // + is here for unary +.
+    TOK_MINUS, // - is here for unary -.
+    TOK_LAST_UNARY = TOK_MINUS,
+
     TOK_RPAREN,
     TOK_FN,
     TOK_IF,
-    TOK_PLUS,
-    TOK_MINUS,
+    TOK_IN,
     TOK_STAR,
+    TOK_SLASH,
     TOK_EQUALS,
     TOK_ARROW,
     TOK_LET,
     TOK_REC,
+    TOK_THEN,
+    TOK_ELSE,
 } MILLIE_TOKEN;
 
 struct MillieToken {
@@ -138,31 +148,77 @@ Symbol FindOrCreateSymbol(struct SymbolTable *table, struct MString *key);
  */
 typedef enum {
     EXP_INVALID = 0,
-    EXP_LAMBDA = 1,
-    EXP_IDENTIFIER = 2,
-    EXP_APPLY = 3,
-    EXP_LET = 4,
-    EXP_LETREC = 5,
-    EXP_INTEGER_CONSTANT = 6,
-    EXP_TRUE = 7,
-    EXP_FALSE = 8,
+    EXP_LAMBDA,
+    EXP_IDENTIFIER,
+    EXP_APPLY,
+    EXP_LET,
+    EXP_LETREC,
+    EXP_INTEGER_CONSTANT,
+    EXP_TRUE,
+    EXP_FALSE,
+    EXP_IF,
+    EXP_THEN_ELSE,
+    EXP_BINARY,
+    EXP_UNARY,
 } ExpressionType;
+
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
 
 struct Expression {
     ExpressionType type;
-    Symbol id;
     union
     {
-        struct Expression *apply_function;
-        struct Expression *lambda_body;
-        struct Expression *let_value;
-    };
-    union
-    {
-        struct Expression *apply_argument;
-        struct Expression *let_body;
+        struct
+        {
+            struct Expression *lambda_body;
+            Symbol lambda_id;
+        };
+        struct
+        {
+            Symbol identifier_id;
+        };
+        struct
+        {
+            struct Expression *apply_function;
+            struct Expression *apply_argument;
+        };
+        struct
+        {
+            Symbol let_id;
+            struct Expression *let_value;
+            struct Expression *let_body;
+        };
+        struct
+        {
+            uint64_t literal_value;
+        };
+        struct
+        {
+            struct Expression *if_test;
+            struct Expression *if_then_else;
+        };
+        struct
+        {
+            struct Expression *then_then;
+            struct Expression *then_else;
+        };
+        struct
+        {
+            MILLIE_TOKEN binary_operator;
+            struct Expression *binary_left;
+            struct Expression *binary_right;
+        };
+        struct
+        {
+            MILLIE_TOKEN unary_operator;
+            struct Expression *unary_arg;
+        };
     };
 };
+
+#pragma GCC diagnostic pop
 
 struct Expression *MakeLambda(struct Arena *arena, Symbol variable,
                               struct Expression *body);
@@ -173,6 +229,15 @@ struct Expression *MakeLet(struct Arena *arena, Symbol variable,
                            struct Expression *value, struct Expression *body);
 struct Expression *MakeLetRec(struct Arena *arena, Symbol variable,
                               struct Expression *value, struct Expression *body);
-
+struct Expression *MakeIf(struct Arena *arena, struct Expression *test,
+                          struct Expression *then_branch,
+                          struct Expression *else_branch);
+struct Expression *MakeBinary(struct Arena *arena, MILLIE_TOKEN op,
+                              struct Expression *left,
+                              struct Expression *right);
+struct Expression *MakeUnary(struct Arena *arena, MILLIE_TOKEN op,
+                             struct Expression *arg);
+struct Expression *MakeBooleanLiteral(struct Arena *arena, bool value);
+struct Expression *MakeIntegerLiteral(struct Arena *arena, uint64_t value);
 
 #define PLATFORM_INCLUDED

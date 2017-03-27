@@ -9,7 +9,7 @@
 #include "symboltable.c"
 #include "lexer.c"
 #include "ast.c"
-
+#include "parser.c"
 
 /*
  * Type Variables
@@ -336,7 +336,7 @@ Analyze(struct CheckContext *context, struct Expression *node,
             struct TypeExp *type = LookupType(
                 context->arena,
                 env,
-                node->id,
+                node->identifier_id,
                 non_generics
             );
             if (type == NULL) {
@@ -380,7 +380,7 @@ Analyze(struct CheckContext *context, struct Expression *node,
             struct TypeEnvironment *new_env = BindType(
                 context->arena,
                 env,
-                node->id,
+                node->lambda_id,
                 arg_type
             );
             struct NonGenericTypeList *new_non_generic = ExtendNonGenericTypeList(
@@ -407,7 +407,7 @@ Analyze(struct CheckContext *context, struct Expression *node,
             struct TypeEnvironment *new_env = BindType(
                 context->arena,
                 env,
-                node->id,
+                node->let_id,
                 defn_type
             );
             return Analyze(context, node->let_body, new_env, non_generics);
@@ -418,7 +418,7 @@ Analyze(struct CheckContext *context, struct Expression *node,
             struct TypeEnvironment *new_env = BindType(
                 context->arena,
                 env,
-                node->id,
+                node->let_id,
                 new_type
             );
             struct NonGenericTypeList *new_non_generic = ExtendNonGenericTypeList(
@@ -440,18 +440,16 @@ Analyze(struct CheckContext *context, struct Expression *node,
     case EXP_TRUE:
     case EXP_FALSE:
         return &BooleanTypeExp;
+    case EXP_IF:
+    case EXP_THEN_ELSE:
+    case EXP_BINARY:
+    case EXP_UNARY:
     case EXP_INVALID:
         break;
     }
     Fail("Invalid expression structure");
     return NULL;
 }
-
-/*
- * Parser
- */
-struct Expression *
-ParseExpression(struct Arena *arena, struct MillieTokens *tokens);
 
 /*
  * Driver

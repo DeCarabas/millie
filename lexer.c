@@ -105,6 +105,7 @@ static int _TryAddKeyword(struct KeywordToken keyword,
     return 0;
 }
 
+// TODO: Parse as identifier and then classify keywords; use length &c.
 static int _TryAddKeywords(struct KeywordToken *keywords,
                            struct MillieTokens *tokens,
                            const char *start,
@@ -176,6 +177,7 @@ struct MillieTokens *LexBuffer(struct MString *buffer, struct Errors **errors)
         case '+': _AddToken(tokens, TOK_PLUS, pos, 1); ptr++; break;
         case '-': _AddToken(tokens, TOK_MINUS, pos, 1); ptr++; break;
         case '*': _AddToken(tokens, TOK_STAR, pos, 1); ptr++; break;
+        case '/': _AddToken(tokens, TOK_SLASH, pos, 1); ptr++; break;
         case '=':
             {
                 ptr++;
@@ -199,6 +201,18 @@ struct MillieTokens *LexBuffer(struct MString *buffer, struct Errors **errors)
             ptr++;
             break;
 
+        case 'e':
+            {
+                struct KeywordToken kws[] = {
+                    { "else", TOK_ELSE },
+                    { NULL, 0 },
+                };
+                if (!_TryAddKeywords(kws, tokens, start, length, &ptr)) {
+                    _AddIdentifierToken(tokens, start, length, &ptr);
+                }
+            }
+            break;
+
         case 'f':
             {
                 struct KeywordToken kws[] = {
@@ -216,6 +230,7 @@ struct MillieTokens *LexBuffer(struct MString *buffer, struct Errors **errors)
             {
                 struct KeywordToken kws[] = {
                     { "if", TOK_IF },
+                    { "in", TOK_IN },
                     { NULL, 0 },
                 };
                 if (!_TryAddKeywords(kws, tokens, start, length, &ptr)) {
@@ -251,6 +266,7 @@ struct MillieTokens *LexBuffer(struct MString *buffer, struct Errors **errors)
         case 't':
             {
                 struct KeywordToken kws[] = {
+                    { "then", TOK_THEN },
                     { "true", TOK_TRUE },
                     { NULL, 0 },
                 };
@@ -288,12 +304,14 @@ struct MillieTokens *LexBuffer(struct MString *buffer, struct Errors **errors)
         }
     }
 
+    _AddToken(tokens, TOK_EOF, length, 0);
     return tokens;
 }
 
-void
-GetLineColumnForPosition(struct MillieTokens *tokens, unsigned int position,
-                         unsigned int *line, unsigned int *col)
+void GetLineColumnForPosition(struct MillieTokens *tokens,
+                              unsigned int position,
+                              unsigned int *line,
+                              unsigned int *col)
 {
     unsigned int *line_array = (unsigned int *)(tokens->line_array->buffer);
     int min = 0;
@@ -319,8 +337,7 @@ GetLineColumnForPosition(struct MillieTokens *tokens, unsigned int position,
     }
 }
 
-struct MString *
-ExtractLine(struct MillieTokens *tokens, unsigned int line)
+struct MString *ExtractLine(struct MillieTokens *tokens, unsigned int line)
 {
     if (line == 0) {
         Fail("Expect line > 0");
