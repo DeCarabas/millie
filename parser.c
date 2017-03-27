@@ -165,6 +165,20 @@ static struct Expression *_ParsePrimary(struct ParseContext *context)
     return NULL;
 }
 
+static struct Expression *_ParseApplication(struct ParseContext *context)
+{
+    struct Expression *expr = _ParsePrimary(context);
+
+    while (_PeekToken(context) >= TOK_FIRST_PRIMARY &&
+           _PeekToken(context) <= TOK_LAST_PRIMARY) {
+
+        struct Expression *arg = _ParsePrimary(context);
+        expr = MakeApply(context->arena, expr, arg);
+    }
+
+    return expr;
+}
+
 static struct Expression *_ParseUnary(struct ParseContext *context)
 {
     if (_MatchV(context, 2, TOK_PLUS, TOK_MINUS)) {
@@ -173,30 +187,16 @@ static struct Expression *_ParseUnary(struct ParseContext *context)
         return MakeUnary(context->arena, operator, right);
     }
 
-    return _ParsePrimary(context);
-}
-
-static struct Expression *_ParseApplication(struct ParseContext *context)
-{
-    struct Expression *expr = _ParseUnary(context);
-
-    while (_PeekToken(context) >= TOK_FIRST_UNARY &&
-           _PeekToken(context) <= TOK_LAST_UNARY) {
-
-        struct Expression *arg = _ParseUnary(context);
-        expr = MakeApply(context->arena, expr, arg);
-    }
-
-    return expr;
+    return _ParseApplication(context);
 }
 
 static struct Expression *_ParseFactor(struct ParseContext *context)
 {
-    struct Expression *expr = _ParseApplication(context);
+    struct Expression *expr = _ParseUnary(context);
 
     while(_MatchV(context, 2, TOK_STAR, TOK_SLASH)) {
         MILLIE_TOKEN operator = _PrevToken(context);
-        struct Expression *right = _ParseApplication(context);
+        struct Expression *right = _ParseUnary(context);
         expr = MakeBinary(context->arena, operator, expr, right);
     }
 

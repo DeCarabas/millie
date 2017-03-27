@@ -90,16 +90,16 @@ struct ErrorReport *FirstError(struct Errors *errors);
 typedef enum {
     TOK_EOF = 0,
 
-    TOK_FIRST_UNARY,
-    TOK_ID = TOK_FIRST_UNARY,
+    TOK_FIRST_PRIMARY,
+    TOK_ID = TOK_FIRST_PRIMARY,
     TOK_INT_LITERAL,
     TOK_TRUE,
     TOK_FALSE,
     TOK_LPAREN,
+    TOK_LAST_PRIMARY = TOK_LPAREN,
+
     TOK_PLUS,  // + is here for unary +.
     TOK_MINUS, // - is here for unary -.
-    TOK_LAST_UNARY = TOK_MINUS,
-
     TOK_RPAREN,
     TOK_FN,
     TOK_IF,
