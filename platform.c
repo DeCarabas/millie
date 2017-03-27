@@ -52,7 +52,10 @@ void *ArenaAllocate(struct Arena *arena, size_t size)
         Fail("Allocation too big.");
     }
     struct ArenaBlock *current_block = arena->current;
-    ptrdiff_t space_remaining = current_block->start - current_block->arena;
+    ptrdiff_t space_remaining = -1;
+    if (current_block) {
+        space_remaining = current_block->start - current_block->arena;
+    }
     if ((space_remaining < 0) || (size > (size_t)space_remaining)) {
         struct ArenaBlock *new_block = calloc(1, sizeof(struct ArenaBlock));
         new_block->next = current_block;

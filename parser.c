@@ -2,11 +2,6 @@
 #include "platform.h"
 #endif
 
-struct Expression *ParseExpression(struct Arena *arena,
-                                   struct MillieTokens *tokens,
-                                   struct SymbolTable *symbol_table,
-                                   struct Errors **errors);
-
 struct ParseContext {
     struct Arena *arena;
     struct MString *buffer;
@@ -221,6 +216,19 @@ static struct Expression *_ParseTerm(struct ParseContext *context)
     return expr;
 }
 
+static struct Expression *_ParseComparison(struct ParseContext *context)
+{
+    struct Expression *expr = _ParseTerm(context);
+
+    while(_Match(context, TOK_EQUALS)) {
+        MILLIE_TOKEN operator = _PrevToken(context);
+        struct Expression *right = _ParseTerm(context);
+        expr = MakeBinary(context->arena, operator, expr, right);
+    }
+
+    return expr;
+}
+
 static struct Expression *_ParseFn(struct ParseContext *context)
 {
     if (_Match(context, TOK_FN)) {
@@ -235,7 +243,7 @@ static struct Expression *_ParseFn(struct ParseContext *context)
         return MakeLambda(context->arena, variable, body);
     }
 
-    return _ParseTerm(context);
+    return _ParseComparison(context);
 }
 
 static struct Expression *_ParseIf(struct ParseContext *context)
@@ -303,5 +311,7 @@ struct Expression *ParseExpression(struct Arena *arena,
     context.pos = 0;
     context.table = symbol_table;
     context.errors = errors;
+    context.lost_count = 0;
+
     return _ParseExpr(&context);
 }

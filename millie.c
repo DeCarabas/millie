@@ -526,11 +526,93 @@ void PrintTokens(struct MillieTokens *tokens)
     }
 }
 
+void PrintIndent(int indent);
+void PrintIndent(int indent)
+{
+    for(int i = 0; i < indent; i++) {
+        printf("  ");
+    }
+}
+
+void PrintTree(struct Expression *expression, int indent);
+void PrintTree(struct Expression *expression, int indent)
+{
+    switch(expression->type) {
+    case EXP_LAMBDA:
+        PrintIndent(indent); printf("lambda %d =>\n", expression->lambda_id);
+        PrintTree(expression->lambda_body, indent+1);
+        break;
+
+    case EXP_IDENTIFIER:
+        PrintIndent(indent); printf("id %d\n", expression->identifier_id);
+        break;
+
+    case EXP_APPLY:
+        PrintIndent(indent); printf("apply\n");
+        PrintTree(expression->apply_function, indent+1);
+        PrintTree(expression->apply_argument, indent+1);
+        break;
+
+    case EXP_LET:
+        PrintIndent(indent); printf("let %d = \n", expression->let_id);
+        PrintTree(expression->let_value, indent+1);
+        PrintIndent(indent); printf("in\n");
+        PrintTree(expression->let_body, indent+1);
+        break;
+    case EXP_LETREC:
+        PrintIndent(indent); printf("let rec %d = \n", expression->let_id);
+        PrintTree(expression->let_value, indent+1);
+        PrintIndent(indent); printf("in\n");
+        PrintTree(expression->let_body, indent+1);
+        break;
+
+    case EXP_INTEGER_CONSTANT:
+        PrintIndent(indent); printf("literal %llu\n", expression->literal_value);
+        break;
+
+    case EXP_TRUE:
+        PrintIndent(indent); printf("true\n");
+        break;
+
+    case EXP_FALSE:
+        PrintIndent(indent); printf("false\n");
+        break;
+
+    case EXP_IF:
+        PrintIndent(indent); printf("if\n");
+        PrintTree(expression->if_test, indent+1);
+        PrintTree(expression->if_then_else, indent);
+        break;
+
+    case EXP_THEN_ELSE:
+        PrintIndent(indent); printf("then\n");
+        PrintTree(expression->then_then, indent+1);
+        PrintIndent(indent); printf("else\n");
+        PrintTree(expression->then_else, indent+1);
+        break;
+
+    case EXP_BINARY:
+        PrintIndent(indent); printf("binary %d\n", expression->binary_operator);
+        PrintTree(expression->binary_left, indent+1);
+        PrintTree(expression->binary_right, indent+1);
+        break;
+
+    case EXP_UNARY:
+        PrintIndent(indent); printf("unary %d\n", expression->unary_operator);
+        PrintTree(expression->unary_arg, indent+1);
+        break;
+
+    case EXP_INVALID:
+        PrintIndent(indent); printf("???\n");
+        break;
+    }
+}
+
 int main()
 {
     struct MString *buffer = MStringCreate(
         "let rec factorial =\n"
-        "  fn n => if n = 0 then 1 else n * factorial n - 1\n"
+        "  fn n => if n = 0 then 1 else n * factorial (n - 1)\n"
         "in factorial 5\n"
     );
 
@@ -541,9 +623,20 @@ int main()
         return 1;
     }
 
-    PrintTokens(tokens);
+    // PrintTokens(tokens);
 
-    /* struct Arena *arena = MakeFreshArena(); */
+    struct Arena *arena = MakeFreshArena();
+    struct SymbolTable *symbol_table = SymbolTableCreate();
+    struct Expression *expression;
+    expression = ParseExpression(arena, tokens, symbol_table, &errors);
+    if (errors) {
+        PrintErrors("test", tokens, errors);
+        return 1;
+    }
+
+    PrintTree(expression, 0);
+    printf("\n");
+
     /* struct CheckContext *context = MakeNewCheckContext(arena); */
     /* struct Expression *node = ParseExpression(arena, tokens); */
     /* struct TypeExp *type = Analyze(context, node, NULL, NULL); */

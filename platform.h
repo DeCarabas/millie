@@ -240,4 +240,13 @@ struct Expression *MakeUnary(struct Arena *arena, MILLIE_TOKEN op,
 struct Expression *MakeBooleanLiteral(struct Arena *arena, bool value);
 struct Expression *MakeIntegerLiteral(struct Arena *arena, uint64_t value);
 
+/*
+ * Parsing
+ */
+struct Expression *ParseExpression(struct Arena *arena,
+                                   struct MillieTokens *tokens,
+                                   struct SymbolTable *symbol_table,
+                                   struct Errors **errors);
+
+
 #define PLATFORM_INCLUDED
