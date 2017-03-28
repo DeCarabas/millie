@@ -39,7 +39,7 @@ struct Expression *MakeApply(struct Arena *arena, struct Expression *func_expr,
     struct Expression *result = ArenaAllocate(arena, sizeof(struct Expression));
     result->type = EXP_APPLY;
     result->start_token = func_expr->start_token;
-    result->end_token = func_expr->end_token;
+    result->end_token = arg_expr->end_token;
     result->apply_function = func_expr;
     result->apply_argument = arg_expr;
     return result;
