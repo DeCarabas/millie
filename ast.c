@@ -78,20 +78,13 @@ struct Expression *MakeIf(struct Arena *arena, uint32_t if_pos,
                           struct Expression *then_branch,
                           struct Expression *else_branch)
 {
-    struct Expression *then_else;
-    then_else = ArenaAllocate(arena, sizeof(struct Expression));
-    then_else->start_token = if_pos;
-    then_else->end_token = else_branch->end_token;
-    then_else->type = EXP_THEN_ELSE;
-    then_else->then_then = then_branch;
-    then_else->then_else = else_branch;
-
     struct Expression *result = ArenaAllocate(arena, sizeof(struct Expression));
     result->type = EXP_IF;
     result->start_token = if_pos;
     result->end_token = else_branch->end_token;
     result->if_test = test;
-    result->if_then_else = then_else;
+    result->if_then = then_branch;
+    result->if_else = else_branch;
     return result;
 }
 

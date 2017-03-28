@@ -95,72 +95,107 @@ void PrintIndent(int indent)
     }
 }
 
-void PrintTree(struct Expression *expression, int indent);
-void PrintTree(struct Expression *expression, int indent)
+void PrintTree(struct SymbolTable *table, struct MillieTokens *tokens,
+               struct Expression *expression, int indent);
+void PrintTree(struct SymbolTable *table, struct MillieTokens *tokens,
+               struct Expression *expression, int indent)
 {
     switch(expression->type) {
     case EXP_LAMBDA:
-        PrintIndent(indent); printf("lambda %d =>\n", expression->lambda_id);
-        PrintTree(expression->lambda_body, indent+1);
+        {
+            struct MString *id = FindSymbolKey(table, expression->lambda_id);
+            PrintIndent(indent); printf("lambda %s =>\n", MStringData(id));
+            PrintTree(table, tokens, expression->lambda_body, indent+1);
+            MStringFree(&id);
+        }
         break;
 
     case EXP_IDENTIFIER:
-        PrintIndent(indent); printf("id %d\n", expression->identifier_id);
+        {
+            struct MString *id = FindSymbolKey(table, expression->identifier_id);
+            PrintIndent(indent); printf("id %s\n", MStringData(id));
+            MStringFree(&id);
+        }
         break;
 
     case EXP_APPLY:
-        PrintIndent(indent); printf("apply\n");
-        PrintTree(expression->apply_function, indent+1);
-        PrintTree(expression->apply_argument, indent+1);
+        {
+            PrintIndent(indent); printf("apply\n");
+            PrintTree(table, tokens, expression->apply_function, indent+1);
+            PrintTree(table, tokens, expression->apply_argument, indent+1);
+        }
         break;
 
     case EXP_LET:
-        PrintIndent(indent); printf("let %d = \n", expression->let_id);
-        PrintTree(expression->let_value, indent+1);
-        PrintIndent(indent); printf("in\n");
-        PrintTree(expression->let_body, indent+1);
+        {
+            struct MString *id = FindSymbolKey(table, expression->let_id);
+            PrintIndent(indent); printf("let %s = \n", MStringData(id));
+            PrintTree(table, tokens, expression->let_value, indent+1);
+            PrintIndent(indent); printf("in\n");
+            PrintTree(table, tokens, expression->let_body, indent+1);
+            MStringFree(&id);
+        }
         break;
     case EXP_LETREC:
-        PrintIndent(indent); printf("let rec %d = \n", expression->let_id);
-        PrintTree(expression->let_value, indent+1);
-        PrintIndent(indent); printf("in\n");
-        PrintTree(expression->let_body, indent+1);
+        {
+            struct MString *id = FindSymbolKey(table, expression->let_id);
+            PrintIndent(indent); printf("let rec %s = \n", MStringData(id));
+            PrintTree(table, tokens, expression->let_value, indent+1);
+            PrintIndent(indent); printf("in\n");
+            PrintTree(table, tokens, expression->let_body, indent+1);
+            MStringFree(&id);
+        }
         break;
 
     case EXP_INTEGER_CONSTANT:
-        PrintIndent(indent); printf("literal %llu\n", expression->literal_value);
+        {
+            PrintIndent(indent);
+            printf("literal %llu\n", expression->literal_value);
+        }
         break;
 
     case EXP_TRUE:
-        PrintIndent(indent); printf("true\n");
+        {
+            PrintIndent(indent); printf("true\n");
+        }
         break;
 
     case EXP_FALSE:
-        PrintIndent(indent); printf("false\n");
+        {
+            PrintIndent(indent); printf("false\n");
+        }
         break;
 
     case EXP_IF:
-        PrintIndent(indent); printf("if\n");
-        PrintTree(expression->if_test, indent+1);
-        PrintTree(expression->if_then_else, indent);
-        break;
-
-    case EXP_THEN_ELSE:
-        PrintIndent(indent); printf("then\n");
-        PrintTree(expression->then_then, indent+1);
-        PrintIndent(indent); printf("else\n");
-        PrintTree(expression->then_else, indent+1);
+        {
+            PrintIndent(indent); printf("if\n");
+            PrintTree(table, tokens, expression->if_test, indent+1);
+            PrintIndent(indent); printf("then\n");
+            PrintTree(table, tokens, expression->if_then, indent+1);
+            PrintIndent(indent); printf("else\n");
+            PrintTree(table, tokens, expression->if_else, indent+1);
+        }
         break;
 
     case EXP_BINARY:
-        PrintIndent(indent); printf("binary %d\n", expression->binary_operator);
-        PrintTree(expression->binary_left, indent+1);
-        PrintTree(expression->binary_right, indent+1);
+        {
+            uint32_t bin_tok = expression->binary_left->end_token + 1;
+            struct MString *operator = ExtractToken(tokens, bin_tok);
+            PrintIndent(indent); printf("binary %s\n", MStringData(operator));
+            PrintTree(table, tokens, expression->binary_left, indent+1);
+            PrintTree(table, tokens, expression->binary_right, indent+1);
+            MStringFree(&operator);
+        }
         break;
 
     case EXP_UNARY:
-        PrintIndent(indent); printf("unary %d\n", expression->unary_operator);
-        PrintTree(expression->unary_arg, indent+1);
+        {
+            struct MString *operator;
+            operator = ExtractToken(tokens, expression->start_token);
+            PrintIndent(indent); printf("unary %s\n", MStringData(operator));
+            PrintTree(table, tokens, expression->unary_arg, indent+1);
+            MStringFree(&operator);
+        }
         break;
 
     case EXP_ERROR:
@@ -177,7 +212,7 @@ int main()
 {
     struct MString *buffer = MStringCreate(
         "let rec factorial =\n"
-        "  fn n => if n = 0 then 1 else n * factorial (n - 1)\n"
+        "  fn n => if n = 0 then 1 else n * factorial (n + -1)\n"
         "in factorial 5\n"
     );
 
@@ -199,9 +234,10 @@ int main()
         return 1;
     }
 
-    PrintTree(expression, 0);
+    PrintTree(symbol_table, tokens, expression, 0);
     printf("\n");
     printf("Arena: %lu bytes used\n", ArenaAllocated(arena));
+    printf("Size of expression is %lu bytes\n", sizeof(struct Expression));
     FreeArena(&arena);
 
     /* struct CheckContext *context = MakeNewCheckContext(arena); */

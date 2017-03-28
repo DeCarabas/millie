@@ -433,7 +433,6 @@ Analyze(struct CheckContext *context, struct Expression *node,
     case EXP_FALSE:
         return &BooleanTypeExp;
     case EXP_IF:
-    case EXP_THEN_ELSE:
     case EXP_BINARY:
     case EXP_UNARY:
     case EXP_INVALID:

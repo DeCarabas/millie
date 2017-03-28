@@ -161,7 +161,6 @@ typedef enum {
     EXP_TRUE,
     EXP_FALSE,
     EXP_IF,
-    EXP_THEN_ELSE,
     EXP_BINARY,
     EXP_UNARY,
 } ExpressionType;
@@ -203,12 +202,8 @@ struct Expression {
         struct
         {
             struct Expression *if_test;
-            struct Expression *if_then_else;
-        };
-        struct
-        {
-            struct Expression *then_then;
-            struct Expression *then_else;
+            struct Expression *if_then;
+            struct Expression *if_else;
         };
         struct
         {
