@@ -183,3 +183,17 @@ Symbol FindOrCreateSymbol(struct SymbolTable *table, struct MString *key)
 
     return symbol;
 }
+
+struct MString *FindSymbolKey(struct SymbolTable *table, Symbol symbol)
+{
+    for(uint32_t i = 0; i < table->capacity; i++) {
+        if ((table->hashes[i] == 0) || (_IsDeleted(table->hashes[i]))) {
+            continue;
+        }
+        if (table->entries[i].value == symbol) {
+            return MStringCopy(table->entries[i].key);
+        }
+    }
+
+    return NULL;
+}

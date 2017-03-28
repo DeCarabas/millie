@@ -144,6 +144,7 @@ struct SymbolTable;
 struct SymbolTable *SymbolTableCreate(void);
 void SymbolTableFree(struct SymbolTable **table_ptr);
 Symbol FindOrCreateSymbol(struct SymbolTable *table, struct MString *key);
+struct MString *FindSymbolKey(struct SymbolTable *table, Symbol symbol);
 
 /*
  * AST
