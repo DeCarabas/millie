@@ -437,6 +437,7 @@ Analyze(struct CheckContext *context, struct Expression *node,
     case EXP_BINARY:
     case EXP_UNARY:
     case EXP_INVALID:
+    case EXP_ERROR:
         break;
     }
     Fail("Invalid expression structure");

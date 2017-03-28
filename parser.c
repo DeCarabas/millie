@@ -27,6 +27,11 @@ static MILLIE_TOKEN _PrevToken(struct ParseContext *context)
     return context->tokens[context->pos-1].type;
 }
 
+static uint32_t _PrevPos(struct ParseContext *context)
+{
+    return context->pos-1;
+}
+
 static bool _IsAtEnd(struct ParseContext *context)
 {
     return _PeekToken(context) == TOK_EOF;
@@ -132,10 +137,10 @@ static Symbol _ParseSymbol(struct ParseContext *context)
 static struct Expression *_ParsePrimary(struct ParseContext *context)
 {
     if (_Match(context, TOK_FALSE)) {
-        return MakeBooleanLiteral(context->arena, false);
+        return MakeBooleanLiteral(context->arena, _PrevPos(context), false);
     }
     if (_Match(context, TOK_TRUE)) {
-        return MakeBooleanLiteral(context->arena, true);
+        return MakeBooleanLiteral(context->arena, _PrevPos(context), true);
     }
     if (_Match(context, TOK_INT_LITERAL)) {
         uint64_t value = 0;
@@ -149,11 +154,11 @@ static struct Expression *_ParsePrimary(struct ParseContext *context)
             }
             value = new_value;
         }
-        return MakeIntegerLiteral(context->arena, value);
+        return MakeIntegerLiteral(context->arena,  _PrevPos(context), value);
     }
     if (_Check(context, TOK_ID)) {
         Symbol sym = _ParseSymbol(context);
-        return MakeIdentifier(context->arena, sym);
+        return MakeIdentifier(context->arena, _PrevPos(context), sym);
     }
     if (_Match(context, TOK_LPAREN)) {
         struct Expression *expr = _ParseExpr(context);
@@ -162,7 +167,7 @@ static struct Expression *_ParsePrimary(struct ParseContext *context)
     }
 
     _SyntaxError(context, "Expected an expression.");
-    return NULL;
+    return MakeSyntaxError(context->arena, context->pos);
 }
 
 static struct Expression *_ParseApplication(struct ParseContext *context)
@@ -183,8 +188,9 @@ static struct Expression *_ParseUnary(struct ParseContext *context)
 {
     if (_MatchV(context, 2, TOK_PLUS, TOK_MINUS)) {
         MILLIE_TOKEN operator = _PrevToken(context);
+        uint32_t token_pos = _PrevPos(context);
         struct Expression *right = _ParseUnary(context);
-        return MakeUnary(context->arena, operator, right);
+        return MakeUnary(context->arena, token_pos, operator, right);
     }
 
     return _ParseApplication(context);
@@ -232,6 +238,7 @@ static struct Expression *_ParseComparison(struct ParseContext *context)
 static struct Expression *_ParseFn(struct ParseContext *context)
 {
     if (_Match(context, TOK_FN)) {
+        uint32_t token_pos = _PrevPos(context);
         Symbol variable = _ParseSymbol(context);
         _Expect(
             context,
@@ -240,7 +247,7 @@ static struct Expression *_ParseFn(struct ParseContext *context)
         );
         struct Expression *body = _ParseExpr(context);
 
-        return MakeLambda(context->arena, variable, body);
+        return MakeLambda(context->arena, token_pos, variable, body);
     }
 
     return _ParseComparison(context);
@@ -249,13 +256,14 @@ static struct Expression *_ParseFn(struct ParseContext *context)
 static struct Expression *_ParseIf(struct ParseContext *context)
 {
     if (_Match(context, TOK_IF)) {
+        uint32_t token_pos = _PrevPos(context);
         struct Expression *test = _ParseExpr(context);
         _Expect(context, TOK_THEN, "Expected 'then' after the condition.");
         struct Expression *then_arm = _ParseExpr(context);
         _Expect(context, TOK_ELSE, "Expected 'else' after the 'then' arm.");
         struct Expression *else_arm = _ParseExpr(context);
 
-        return MakeIf(context->arena, test, then_arm, else_arm);
+        return MakeIf(context->arena, token_pos, test, then_arm, else_arm);
     }
 
     return _ParseFn(context);
@@ -264,6 +272,8 @@ static struct Expression *_ParseIf(struct ParseContext *context)
 static struct Expression *_ParseLet(struct ParseContext *context)
 {
     if (_Match(context, TOK_LET)) {
+        uint32_t token_pos = _PrevPos(context);
+
         bool is_let_rec = false;
         if (_Match(context, TOK_REC)) {
             is_let_rec = true;
@@ -285,9 +295,9 @@ static struct Expression *_ParseLet(struct ParseContext *context)
         struct Expression *body = _ParseExpr(context);
 
         if (is_let_rec) {
-            return MakeLetRec(context->arena, variable, value, body);
+            return MakeLetRec(context->arena, token_pos, variable, value, body);
         } else {
-            return MakeLet(context->arena, variable, value, body);
+            return MakeLet(context->arena, token_pos, variable, value, body);
         }
     }
 

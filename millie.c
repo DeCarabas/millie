@@ -163,6 +163,10 @@ void PrintTree(struct Expression *expression, int indent)
         PrintTree(expression->unary_arg, indent+1);
         break;
 
+    case EXP_ERROR:
+        PrintIndent(indent); printf("ERROR");
+        break;
+
     case EXP_INVALID:
         PrintIndent(indent); printf("???\n");
         break;

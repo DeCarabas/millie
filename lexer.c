@@ -362,3 +362,12 @@ struct MString *ExtractLine(struct MillieTokens *tokens, unsigned int line)
         line_end - line_start
     );
 }
+
+struct MString *ExtractToken(struct MillieTokens *tokens, uint32_t pos)
+{
+    struct MillieToken *token_array = tokens->token_array->buffer;
+    return MStringCreateN(
+        MStringData(tokens->buffer) + token_array[pos].start,
+        token_array[pos].length
+    );
+}

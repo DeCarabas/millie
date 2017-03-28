@@ -132,6 +132,7 @@ struct MillieTokens *LexBuffer(struct MString *buffer, struct Errors **errors);
 void GetLineColumnForPosition(struct MillieTokens *tokens, unsigned int position,
                               unsigned int *line, unsigned int *col);
 struct MString *ExtractLine(struct MillieTokens *tokens, unsigned int line);
+struct MString *ExtractToken(struct MillieTokens *tokens, uint32_t pos);
 
 /*
  * Symbol Tables
@@ -149,6 +150,7 @@ Symbol FindOrCreateSymbol(struct SymbolTable *table, struct MString *key);
  */
 typedef enum {
     EXP_INVALID = 0,
+    EXP_ERROR,
     EXP_LAMBDA,
     EXP_IDENTIFIER,
     EXP_APPLY,
@@ -169,6 +171,8 @@ typedef enum {
 
 struct Expression {
     ExpressionType type;
+    uint32_t start_token;
+    uint32_t end_token;
     union
     {
         struct
@@ -221,25 +225,32 @@ struct Expression {
 
 #pragma GCC diagnostic pop
 
-struct Expression *MakeLambda(struct Arena *arena, Symbol variable,
-                              struct Expression *body);
-struct Expression *MakeIdentifier(struct Arena *arena, Symbol id);
+struct Expression *MakeSyntaxError(struct Arena *arena, uint32_t position);
+struct Expression *MakeLambda(struct Arena *arena, uint32_t start_token,
+                              Symbol variable, struct Expression *body);
+struct Expression *MakeIdentifier(struct Arena *arena, uint32_t token_pos,
+                                  Symbol id);
 struct Expression *MakeApply(struct Arena *arena, struct Expression *func_expr,
                              struct Expression *arg_expr);
-struct Expression *MakeLet(struct Arena *arena, Symbol variable,
-                           struct Expression *value, struct Expression *body);
-struct Expression *MakeLetRec(struct Arena *arena, Symbol variable,
-                              struct Expression *value, struct Expression *body);
-struct Expression *MakeIf(struct Arena *arena, struct Expression *test,
+struct Expression *MakeLet(struct Arena *arena, uint32_t let_pos,
+                           Symbol variable, struct Expression *value,
+                           struct Expression *body);
+struct Expression *MakeLetRec(struct Arena *arena, uint32_t let_pos,
+                              Symbol variable, struct Expression *value,
+                              struct Expression *body);
+struct Expression *MakeIf(struct Arena *arena, uint32_t if_pos,
+                          struct Expression *test,
                           struct Expression *then_branch,
                           struct Expression *else_branch);
 struct Expression *MakeBinary(struct Arena *arena, MILLIE_TOKEN op,
                               struct Expression *left,
                               struct Expression *right);
-struct Expression *MakeUnary(struct Arena *arena, MILLIE_TOKEN op,
-                             struct Expression *arg);
-struct Expression *MakeBooleanLiteral(struct Arena *arena, bool value);
-struct Expression *MakeIntegerLiteral(struct Arena *arena, uint64_t value);
+struct Expression *MakeUnary(struct Arena *arena, uint32_t operator_pos,
+                             MILLIE_TOKEN op, struct Expression *arg);
+struct Expression *MakeBooleanLiteral(struct Arena *arena, uint32_t pos,
+                                      bool value);
+struct Expression *MakeIntegerLiteral(struct Arena *arena, uint32_t pos,
+                                      uint64_t value);
 
 /*
  * Parsing
