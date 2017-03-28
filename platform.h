@@ -133,6 +133,7 @@ void GetLineColumnForPosition(struct MillieTokens *tokens, unsigned int position
                               unsigned int *line, unsigned int *col);
 struct MString *ExtractLine(struct MillieTokens *tokens, unsigned int line);
 struct MString *ExtractToken(struct MillieTokens *tokens, uint32_t pos);
+struct MillieToken GetToken(struct MillieTokens *tokens, uint32_t pos);
 
 /*
  * Symbol Tables

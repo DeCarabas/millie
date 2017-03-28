@@ -17,6 +17,16 @@
  */
 
 void PrintTypeExpression(struct TypeExp *type);
+void PrintTypeExpression(struct TypeExp *type)
+{
+    switch(type->type) {
+    case TYPEEXP_VARIABLE:
+    case TYPEEXP_OPERATOR:
+    case TYPEEXP_INVALID:
+        printf("???\n");
+    }
+}
+
 void PrintErrors(const char *fname, struct MillieTokens *tokens,
                  struct Errors *errors);
 void PrintTokens(struct MillieTokens *tokens);
@@ -236,6 +246,14 @@ int main()
 
     PrintTree(symbol_table, tokens, expression, 0);
     printf("\n");
+
+    struct TypeExp *type = TypeExpression(arena, tokens, expression, &errors);
+    if (errors) {
+        PrintErrors("test", tokens, errors);
+        return 1;
+    }
+    PrintTypeExpression(type);
+
     printf("Arena: %lu bytes used\n", ArenaAllocated(arena));
     printf("Size of expression is %lu bytes\n", sizeof(struct Expression));
     FreeArena(&arena);

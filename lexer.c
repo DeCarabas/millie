@@ -371,3 +371,9 @@ struct MString *ExtractToken(struct MillieTokens *tokens, uint32_t pos)
         token_array[pos].length
     );
 }
+
+struct MillieToken GetToken(struct MillieTokens *tokens, uint32_t pos)
+{
+    struct MillieToken *token_array = tokens->token_array->buffer;
+    return token_array[pos];
+}

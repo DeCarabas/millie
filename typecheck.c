@@ -8,13 +8,13 @@
  */
 typedef enum {
     TYPEEXP_INVALID = 0,
-    TYPEEXP_VARIABLE = 1,
-    TYPEEXP_OPERATOR = 2,
+    TYPEEXP_ERROR,
+    TYPEEXP_VARIABLE,
+    TYPEEXP_OPERATOR,
 } TypeExpType;
 
 struct TypeExp {
     TypeExpType type;
-    int id;
     char *name;
     union
     {
@@ -119,13 +119,13 @@ MakeFunctionTypeExp(struct Arena *arena, struct TypeExp *from_type,
     return result;
 }
 
-static struct TypeExp *TYPEEXP_NON_GENERIC_MARKER =
-    (struct TypeExp *)(-1);
-
 struct TypeExp *
 MakeFreshTypeExpCopy(struct Arena *arena, struct TypeExp *type,
                      struct NonGenericTypeList *non_generics)
 {
+    static struct TypeExp *TYPEEXP_NON_GENERIC_MARKER =
+        (struct TypeExp *)(-1);
+
     type = PruneTypeExp(type);
     if (type->type == TYPEEXP_VARIABLE) {
         if (type->var_temp_other == TYPEEXP_NON_GENERIC_MARKER) {
@@ -167,10 +167,10 @@ MakeFreshTypeExpCopy(struct Arena *arena, struct TypeExp *type,
     }
 }
 
-void
-MakeFreshTypeExpCleanup(struct TypeExp *type)
+void MakeFreshTypeExpCleanup(struct TypeExp *type)
 {
     type = PruneTypeExp(type);
+    if (type == NULL) { return; }
     if (type->type == TYPEEXP_VARIABLE) {
         type->var_temp_other = NULL;
     } else {
@@ -190,9 +190,11 @@ MakeFreshTypeExp(struct Arena *arena, struct TypeExp *type,
 }
 
 static struct TypeExp IntegerTypeExp =
-    { TYPEEXP_OPERATOR, -1, "int", {NULL}, {NULL}};
+    { TYPEEXP_OPERATOR, "int", {NULL}, {NULL}};
 static struct TypeExp BooleanTypeExp =
-    { TYPEEXP_OPERATOR, -2, "bool", {NULL}, {NULL}};
+    { TYPEEXP_OPERATOR, "bool", {NULL}, {NULL}};
+static struct TypeExp ErrorTypeExp =
+    { TYPEEXP_ERROR, "error", {NULL}, {NULL}};
 
 
 /*
@@ -248,10 +250,10 @@ LookupType(struct Arena *arena, struct TypeEnvironment *env, Symbol id,
  */
 struct CheckContext {
     struct Arena *arena;
-    struct Errors *errors;
+    struct Errors **errors;
+    struct MillieTokens *tokens;
 };
 
-struct CheckContext *MakeNewCheckContext(struct Arena *arena);
 void ReportTypeError(struct CheckContext *context, struct Expression *node,
                      char *error);
 void Unify(struct CheckContext *context, struct Expression *node,
@@ -260,21 +262,19 @@ struct TypeExp *Analyze(struct CheckContext *context, struct Expression *node,
                         struct TypeEnvironment *env,
                         struct NonGenericTypeList *non_generics);
 
-struct CheckContext *
-MakeNewCheckContext(struct Arena *arena)
+void ReportTypeError(struct CheckContext *context, struct Expression *node,
+                     char *error)
 {
-    struct CheckContext *result;
-    result = ArenaAllocate(arena, sizeof(struct CheckContext));
-    result->arena = arena;
-    return result;
-}
+    struct MillieToken start_token = GetToken(context->tokens, node->start_token);
+    struct MillieToken end_token = GetToken(context->tokens, node->end_token);
 
-void
-ReportTypeError(struct CheckContext *context, struct Expression *node, char *error)
-{
-    // TODO: Source locations.
-    (void)node;
-    AddErrorF(&context->errors, 0, 0, "Type error: %s", error);
+    AddErrorF(
+        context->errors,
+        start_token.start,
+        end_token.start + end_token.length,
+        "Type error: %s",
+        error
+    );
 }
 
 void
@@ -437,8 +437,22 @@ Analyze(struct CheckContext *context, struct Expression *node,
     case EXP_UNARY:
     case EXP_INVALID:
     case EXP_ERROR:
+        ReportTypeError(context, node, "Invalid expression structure");
         break;
     }
-    Fail("Invalid expression structure");
-    return NULL;
+    return &ErrorTypeExp;
+}
+
+struct TypeExp *TypeExpression(
+    struct Arena *arena,
+    struct MillieTokens *tokens,
+    struct Expression *node,
+    struct Errors **errors)
+{
+    struct CheckContext context;
+    context.arena = arena;
+    context.tokens = tokens;
+    context.errors = errors;
+
+    return Analyze(&context, node, NULL, NULL);
 }
