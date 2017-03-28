@@ -106,7 +106,7 @@ struct MString *MStringPrintFV(const char *format, va_list args)
     struct MString *result = _MStringAlloc((unsigned int)total_size, &ptr);
 
     va_copy(ap, args);
-    vsnprintf(ptr, total_size, format, ap);
+    vsnprintf(ptr, total_size+1, format, ap);
     va_end(ap);
 
     return result;
