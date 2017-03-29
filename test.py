@@ -59,7 +59,7 @@ def run_test(path):
         if 'ExpectedType' in spec:
             if actual_type != spec['ExpectedType']:
                 result = 'fail'
-                details = "Expected type '{}' got '{}'".format(
+                details = 'Expected type "{}" got "{}"'.format(
                     spec['ExpectedType'],
                     actual_type
                 )

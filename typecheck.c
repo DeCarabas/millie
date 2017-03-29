@@ -255,7 +255,7 @@ struct TypeExp *_MakeFreshTypeExp(struct Arena *arena, struct TypeExp *type)
 {
     struct TypeExp *fresh_type;
     fresh_type = _MakeFreshTypeExpCopy(arena, type);
-    _CleanupTypeVariables(fresh_type);
+    _CleanupTypeVariables(type);
     return fresh_type;
 }
 
@@ -571,6 +571,45 @@ static void _Unify(struct CheckContext *context, struct Expression *node,
 static struct TypeExp *_Analyze(struct CheckContext *context,
                                 struct Expression *node,
                                 struct TypeEnvironment *env,
+                                struct NonGenericTypeList *non_generics);
+
+static struct TypeExp *_AnalyzeApply(struct CheckContext *context,
+                                struct Expression *node,
+                                struct TypeEnvironment *env,
+                                struct NonGenericTypeList *non_generics)
+{
+    struct TypeExp *function_type = _Analyze(
+        context,
+        node->apply_function,
+        env,
+        non_generics
+    );
+    struct TypeExp *arg_type = _Analyze(
+        context,
+        node->apply_argument,
+        env,
+        non_generics
+    );
+    if (_IsErrorType(function_type) || _IsErrorType(arg_type)) {
+        return &ErrorTypeExp;
+    }
+    struct TypeExp *result_type = _MakeTypeVar(context->arena);
+    _Unify(
+        context,
+        node,
+        UNIFY_INVALID_FUNCTION_APPLY,
+        MakeFunctionTypeExp(
+            context->arena,
+            arg_type,
+            result_type
+        ),
+        function_type);
+    return result_type;
+}
+
+static struct TypeExp *_Analyze(struct CheckContext *context,
+                                struct Expression *node,
+                                struct TypeEnvironment *env,
                                 struct NonGenericTypeList *non_generics)
 {
     switch(node->type) {
@@ -592,36 +631,7 @@ static struct TypeExp *_Analyze(struct CheckContext *context,
             }
             return type;
         }
-    case EXP_APPLY:
-        {
-            struct TypeExp *function_type = _Analyze(
-                context,
-                node->apply_function,
-                env,
-                non_generics
-            );
-            struct TypeExp *arg_type = _Analyze(
-                context,
-                node->apply_argument,
-                env,
-                non_generics
-            );
-            if (_IsErrorType(function_type) || _IsErrorType(arg_type)) {
-                return &ErrorTypeExp;
-            }
-            struct TypeExp *result_type = _MakeTypeVar(context->arena);
-            _Unify(
-                context,
-                node,
-                UNIFY_INVALID_FUNCTION_APPLY,
-                MakeFunctionTypeExp(
-                    context->arena,
-                    arg_type,
-                    result_type
-                ),
-                function_type);
-            return result_type;
-        }
+    case EXP_APPLY: return _AnalyzeApply(context, node, env, non_generics);
     case EXP_LAMBDA:
         {
             struct TypeExp *arg_type = _MakeTypeVar(context->arena);
