@@ -1,0 +1,4 @@
+# I can infer the type of the identity function.
+#
+# ExpectedType: ( 'A -> 'A )
+fn x => x

@@ -1,3 +1,5 @@
+# Test the error code when applying the wrong type to a function.
+#
 # ExpectFailure: True
 # ExpectedError: either the argument or return type is incompatible
 let rec factorial =

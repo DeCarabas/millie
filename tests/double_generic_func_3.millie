@@ -1,0 +1,8 @@
+# I can infer the type of another weird function.
+#
+# Disabled: True
+# ExpectedType: ( 'A -> ( 'B -> 'B ) )
+let
+    identity = fn x => x
+in
+    fn y => identity identity

@@ -1,3 +1,5 @@
+# Test the error when the condition part of an if is not a boolean.
+#
 # ExpectFailure: True
 # ExpectedError: condition of an if expression must be a boolean
 if 1+1 then 1 else 0

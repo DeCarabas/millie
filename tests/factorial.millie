@@ -1,3 +1,5 @@
+# I can infer the type of factorial and apply it correctly.
+#
 # ExpectedType: int
 let rec factorial =
     fn n =>

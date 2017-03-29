@@ -1,0 +1,4 @@
+# I can infer the type of another weird function.
+#
+# ExpectedType: ( 'A -> ( 'B -> 'A ) )
+fn x => fn y => x

@@ -1,6 +1,7 @@
 #!/usr/local/bin/python3
 import locale
 
+from collections import namedtuple
 from pathlib import Path
 from subprocess import run, PIPE
 from time import perf_counter
@@ -18,8 +19,24 @@ def read_test_spec(path):
     return spec
 
 
+test_result = namedtuple(
+    'test_result',
+    ['result', 'path', 'elapsed', 'details', 'stderr', 'stdout'],
+)
+
+
 def run_test(path):
     spec = read_test_spec(path)
+
+    if 'Disabled' in spec:
+        return test_result(
+            result='skip',
+            path=path,
+            elapsed=0.0,
+            details=None,
+            stderr=None,
+            stdout=None,
+        )
 
     start = perf_counter()
     cp = run(
@@ -53,7 +70,7 @@ def run_test(path):
                     spec['ExpectedError'],
                 )
 
-    return (result, path, elapsed, details, cp.stderr, cp.stdout)
+    return test_result(result, path, elapsed, details, cp.stderr, cp.stdout)
 
 
 locale.setlocale(locale.LC_ALL, '')
