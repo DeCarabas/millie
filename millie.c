@@ -20,8 +20,12 @@ void PrintTypeExpression(struct TypeExp *type);
 void PrintTypeExpression(struct TypeExp *type)
 {
     switch(type->type) {
+    case TYPEEXP_ERROR:
     case TYPEEXP_VARIABLE:
-    case TYPEEXP_OPERATOR:
+    case TYPEEXP_GENERIC_VARIABLE:
+    case TYPEEXP_INT:
+    case TYPEEXP_BOOL:
+    case TYPEEXP_FUNC:
     case TYPEEXP_INVALID:
         printf("???\n");
     }
