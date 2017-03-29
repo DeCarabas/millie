@@ -132,3 +132,131 @@ struct Expression *MakeIntegerLiteral(struct Arena *arena, uint32_t pos,
     result->start_token = result->end_token = pos;
     return result;
 }
+
+static void _PrintIndent(int indent)
+{
+    for(int i = 0; i < indent; i++) {
+        printf("  ");
+    }
+}
+
+static void _DumpExprImpl(
+    struct SymbolTable *table,
+    struct MillieTokens *tokens,
+    struct Expression *expression,
+    int indent
+)
+{
+    switch(expression->type) {
+    case EXP_LAMBDA:
+        {
+            struct MString *id = FindSymbolKey(table, expression->lambda_id);
+            _PrintIndent(indent); printf("lambda %s =>\n", MStringData(id));
+            _DumpExprImpl(table, tokens, expression->lambda_body, indent+1);
+            MStringFree(&id);
+        }
+        break;
+
+    case EXP_IDENTIFIER:
+        {
+            struct MString *id = FindSymbolKey(table, expression->identifier_id);
+            _PrintIndent(indent); printf("id %s\n", MStringData(id));
+            MStringFree(&id);
+        }
+        break;
+
+    case EXP_APPLY:
+        {
+            _PrintIndent(indent); printf("apply\n");
+            _DumpExprImpl(table, tokens, expression->apply_function, indent+1);
+            _DumpExprImpl(table, tokens, expression->apply_argument, indent+1);
+        }
+        break;
+
+    case EXP_LET:
+        {
+            struct MString *id = FindSymbolKey(table, expression->let_id);
+            _PrintIndent(indent); printf("let %s = \n", MStringData(id));
+            _DumpExprImpl(table, tokens, expression->let_value, indent+1);
+            _PrintIndent(indent); printf("in\n");
+            _DumpExprImpl(table, tokens, expression->let_body, indent+1);
+            MStringFree(&id);
+        }
+        break;
+    case EXP_LETREC:
+        {
+            struct MString *id = FindSymbolKey(table, expression->let_id);
+            _PrintIndent(indent); printf("let rec %s = \n", MStringData(id));
+            _DumpExprImpl(table, tokens, expression->let_value, indent+1);
+            _PrintIndent(indent); printf("in\n");
+            _DumpExprImpl(table, tokens, expression->let_body, indent+1);
+            MStringFree(&id);
+        }
+        break;
+
+    case EXP_INTEGER_CONSTANT:
+        {
+            _PrintIndent(indent);
+            printf("literal %llu\n", expression->literal_value);
+        }
+        break;
+
+    case EXP_TRUE:
+        {
+            _PrintIndent(indent); printf("true\n");
+        }
+        break;
+
+    case EXP_FALSE:
+        {
+            _PrintIndent(indent); printf("false\n");
+        }
+        break;
+
+    case EXP_IF:
+        {
+            _PrintIndent(indent); printf("if\n");
+            _DumpExprImpl(table, tokens, expression->if_test, indent+1);
+            _PrintIndent(indent); printf("then\n");
+            _DumpExprImpl(table, tokens, expression->if_then, indent+1);
+            _PrintIndent(indent); printf("else\n");
+            _DumpExprImpl(table, tokens, expression->if_else, indent+1);
+        }
+        break;
+
+    case EXP_BINARY:
+        {
+            uint32_t bin_tok = expression->binary_left->end_token + 1;
+            struct MString *operator = ExtractToken(tokens, bin_tok);
+            _PrintIndent(indent); printf("binary %s\n", MStringData(operator));
+            _DumpExprImpl(table, tokens, expression->binary_left, indent+1);
+            _DumpExprImpl(table, tokens, expression->binary_right, indent+1);
+            MStringFree(&operator);
+        }
+        break;
+
+    case EXP_UNARY:
+        {
+            struct MString *operator;
+            operator = ExtractToken(tokens, expression->start_token);
+            _PrintIndent(indent); printf("unary %s\n", MStringData(operator));
+            _DumpExprImpl(table, tokens, expression->unary_arg, indent+1);
+            MStringFree(&operator);
+        }
+        break;
+
+    case EXP_ERROR:
+        _PrintIndent(indent); printf("ERROR");
+        break;
+
+    case EXP_INVALID:
+        _PrintIndent(indent); printf("???\n");
+        break;
+    }
+}
+
+void DumpExpression(struct SymbolTable *table, struct MillieTokens *tokens,
+                    struct Expression *expression)
+{
+    _DumpExprImpl(table, tokens, expression, 0);
+}

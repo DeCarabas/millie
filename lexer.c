@@ -381,3 +381,18 @@ struct MillieToken GetToken(struct MillieTokens *tokens, uint32_t pos)
     struct MillieToken *token_array = tokens->token_array->buffer;
     return token_array[pos];
 }
+
+void PrintTokens(struct MillieTokens *tokens)
+{
+    for(unsigned int i = 0; i < tokens->token_array->item_count; i++) {
+        struct MillieToken token;
+        token = *(struct MillieToken *)(ArrayListIndex(tokens->token_array, i));
+
+        struct MString *substr = MStringCreateN(
+            MStringData(tokens->buffer) + token.start,
+            token.length
+        );
+        printf("%03d: %s\n", token.type, MStringData(substr));
+        MStringFree(&substr);
+    }
+}

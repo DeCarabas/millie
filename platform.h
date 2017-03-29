@@ -135,6 +135,7 @@ void GetLineColumnForPosition(struct MillieTokens *tokens, unsigned int position
 struct MString *ExtractLine(struct MillieTokens *tokens, unsigned int line);
 struct MString *ExtractToken(struct MillieTokens *tokens, uint32_t pos);
 struct MillieToken GetToken(struct MillieTokens *tokens, uint32_t pos);
+void PrintTokens(struct MillieTokens *tokens);
 
 /*
  * Symbol Tables
@@ -249,6 +250,8 @@ struct Expression *MakeBooleanLiteral(struct Arena *arena, uint32_t pos,
                                       bool value);
 struct Expression *MakeIntegerLiteral(struct Arena *arena, uint32_t pos,
                                       uint64_t value);
+void DumpExpression(struct SymbolTable *table, struct MillieTokens *tokens,
+                    struct Expression *expression);
 
 /*
  * Parsing

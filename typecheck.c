@@ -559,3 +559,57 @@ struct TypeExp *TypeExpression(
 
     return Analyze(&context, node, NULL, NULL);
 }
+
+static const char *type_names[] = {
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+};
+
+struct MString *_FormatTypeExpressionImpl(struct TypeExp *type, int *counter)
+{
+    type = PruneTypeExp(type);
+    switch(type->type) {
+    case TYPEEXP_ERROR:
+        return MStringCreate("{{Error}}");
+
+    case TYPEEXP_VARIABLE:
+    case TYPEEXP_GENERIC_VARIABLE:
+        {
+            struct MString *name = (struct MString *)type->var_temp_other;
+            if (!name) {
+                name = MStringPrintF("'%s", type_names[*counter]);
+                type->var_temp_other = (struct TypeExp *)name;
+                (*counter)++;
+            }
+            return MStringCopy(name);
+        }
+        break;
+
+    case TYPEEXP_INT:
+        return MStringCreate("int");
+
+    case TYPEEXP_BOOL:
+        return MStringCreate("bool");
+
+    case TYPEEXP_FUNC:
+        {
+            struct MString *from, *to, *result;
+            from = _FormatTypeExpressionImpl(type->func_from, counter);
+            to = _FormatTypeExpressionImpl(type->func_to, counter);
+            result = MStringPrintF("( %s -> %s )", MStringData(from), MStringData(to));
+            MStringFree(&from);
+            MStringFree(&to);
+            return result;
+        }
+
+    case TYPEEXP_INVALID:
+        break;
+    }
+
+    return MStringCreate("{{Invalid}}");
+}
+
+struct MString *FormatTypeExpression(struct TypeExp *type)
+{
+    int counter = 0;
+    return _FormatTypeExpressionImpl(type, &counter);
+}
