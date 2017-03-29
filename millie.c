@@ -113,21 +113,20 @@ static void PrintErrors(const char *fname, struct MillieTokens *tokens,
     }
 }
 
-/* static void PrintTokens(struct MillieTokens *tokens) */
-/* { */
-/*     for(unsigned int i = 0; i < tokens->token_array->item_count; i++) { */
-/*         struct MillieToken token; */
-/*         token = *(struct MillieToken *)(ArrayListIndex(tokens->token_array, i)); */
+static void PrintTokens(struct MillieTokens *tokens)
+{
+    for(unsigned int i = 0; i < tokens->token_array->item_count; i++) {
+        struct MillieToken token;
+        token = *(struct MillieToken *)(ArrayListIndex(tokens->token_array, i));
 
-/*         struct MString *substr = MStringCreateN( */
-/*             MStringData(tokens->buffer) + token.start, */
-/*             token.length */
-/*         ); */
-/*         printf("%03d: %s\n", token.type, MStringData(substr)); */
-/*         MStringFree(&substr); */
-/*     } */
-/* } */
-
+        struct MString *substr = MStringCreateN(
+            MStringData(tokens->buffer) + token.start,
+            token.length
+        );
+        printf("%03d: %s\n", token.type, MStringData(substr));
+        MStringFree(&substr);
+    }
+}
 
 static void PrintIndent(int indent)
 {
@@ -256,14 +255,51 @@ static void PrintTree(struct SymbolTable *table,
     _PrintTreeImpl(table, tokens, expression, 0);
 }
 
-
-int main()
+static struct MString *ReadFile(const char *filename)
 {
-    struct MString *buffer = MStringCreate(
-        "let rec factorial =\n"
-        "  fn n => if n = 0 then 1 else n * factorial (n + -1)\n"
-        "in factorial 5\n"
-    );
+    struct stat filestat;
+    if (stat(filename, &filestat) != 0) {
+        fprintf(stderr, "Failed to stat file\n");
+        return NULL;
+    }
+
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        fprintf(stderr, "Failed to open file\n");
+        return NULL;
+    }
+
+    char *buff = malloc(filestat.st_size + 1);
+    size_t readcount = fread(buff, 1, filestat.st_size, file);
+    fclose(file);
+
+    if (readcount != (size_t)filestat.st_size) {
+        fprintf(
+            stderr,
+            "Failed to read the file: read %lu expected %lld\n",
+            readcount,
+            filestat.st_size
+        );
+        return NULL;
+    }
+
+    // TODO: Here is a case where I could avoid double-allocating.
+    struct MString *buffer = MStringCreateN(buff, readcount);
+    free(buff);
+
+    return buffer;
+}
+
+int main(int argc, const char *argv[])
+{
+    // TODO: Proper command line handling, I suppose.
+    if (argc != 2) {
+        printf("Usage: %s <file>\n", argv[0]);
+        return -1;
+    }
+
+    struct MString *buffer = ReadFile(argv[1]);
+    if (!buffer) { return -1; }
 
     struct Errors *errors;
     struct MillieTokens *tokens = LexBuffer(buffer, &errors);
@@ -272,7 +308,8 @@ int main()
         return 1;
     }
 
-    // PrintTokens(tokens);
+    PrintTokens(tokens);
+    printf("\n");
 
     struct Arena *arena = MakeFreshArena();
     struct SymbolTable *symbol_table = SymbolTableCreate();
@@ -298,12 +335,6 @@ int main()
     printf("Arena: %lu bytes used\n", ArenaAllocated(arena));
     printf("Size of expression is %lu bytes\n", sizeof(struct Expression));
     FreeArena(&arena);
-
-    /* struct CheckContext *context = MakeNewCheckContext(arena); */
-    /* struct Expression *node = ParseExpression(arena, tokens); */
-    /* struct TypeExp *type = Analyze(context, node, NULL, NULL); */
-    /* PrintTypeExpression(type); */
-    /* FreeArena(&arena); */
 
     return 0;
 }
