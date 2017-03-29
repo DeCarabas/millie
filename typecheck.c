@@ -5,9 +5,7 @@
 // TODOTODO
 
 /* Drive all of this with the printing function */
-/* Might also be worthwhile to start on the test infrastructure */
-/* TODO: Assign integers for type variable "names" at the end of checking. */
-/*       They can be bytes; it can be an error to have more than 256 generic type variables. */
+/* TODO: Start on the test infrastructure */
 /* TODO: Environments can be easier */
 
 /*

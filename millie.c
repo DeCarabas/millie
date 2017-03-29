@@ -293,6 +293,8 @@ int main()
     }
     PrintTypeExpression(type);
 
+    printf("\n");
+
     printf("Arena: %lu bytes used\n", ArenaAllocated(arena));
     printf("Size of expression is %lu bytes\n", sizeof(struct Expression));
     FreeArena(&arena);
