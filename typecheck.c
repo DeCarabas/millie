@@ -515,27 +515,31 @@ Analyze(struct CheckContext *context, struct Expression *node,
             Unify(context, node, then_type, else_type);
             return then_type;
         }
-        break;
     case EXP_BINARY:
         {
-            // OK, dumb stuff, this should be better but.
+            // OK, dumb stuff, because this lets you add functions.
             struct TypeExp *left, *right;
             left = Analyze(context, node->binary_left, env, non_generics);
             right = Analyze(context, node->binary_right, env, non_generics);
             Unify(context, node, left, right);
             if (node->binary_operator == TOK_EQUALS) {
                 return &BooleanTypeExp;
-            } else {
-                return left;
             }
+
+            return left;
         }
-        break;
+    case EXP_UNARY:
+        {
+            // This lets you negate functions?
+            struct TypeExp *arg;
+            arg = Analyze(context, node->unary_arg, env, non_generics);
+            return arg;
+        }
     case EXP_INTEGER_CONSTANT:
         return &IntegerTypeExp;
     case EXP_TRUE:
     case EXP_FALSE:
         return &BooleanTypeExp;
-    case EXP_UNARY:
     case EXP_INVALID:
     case EXP_ERROR:
         _ReportTypeError(context, node, "Invalid expression structure");
