@@ -34,9 +34,14 @@ uint32_t CityHash32(const char *s, size_t len);
  * String functions
  */
 struct MString;
+struct MStringStatic {
+    int _r0[2];
+    void *_r1[1];
+};
 
 struct MString *MStringCreate(const char *str);
 struct MString *MStringCreateN(const char *str, unsigned int length);
+struct MString *MStringCreateStatic(const char *str, struct MStringStatic *blk);
 void MStringFree(struct MString **string_ptr);
 struct MString *MStringCopy(struct MString *string);
 struct MString *MStringCatV(int count, ...);

@@ -44,14 +44,17 @@ static struct TypeExp *_MakeTypeVar(struct Arena *arena)
     return result;
 }
 
+
 struct NonGenericTypeList {
     struct NonGenericTypeList *next;
     struct TypeExp *type;
 };
 
-struct NonGenericTypeList *
-ExtendNonGenericTypeList(struct Arena *arena, struct TypeExp *type,
-                         struct NonGenericTypeList *non_generics)
+static struct NonGenericTypeList * _ExtendNonGenericTypeList(
+    struct Arena *arena,
+    struct TypeExp *type,
+    struct NonGenericTypeList *non_generics
+)
 {
     struct NonGenericTypeList *new_list;
     new_list = ArenaAllocate(arena, sizeof(struct NonGenericTypeList));
@@ -309,257 +312,8 @@ static struct TypeExp *_LookupType(struct Arena *arena,
 }
 
 /*
- * Type checking/inference
+ * Formatting
  */
-struct CheckContext {
-    struct Arena *arena;
-    struct Errors **errors;
-    struct MillieTokens *tokens;
-};
-
-void Unify(struct CheckContext *context, struct Expression *node,
-           struct TypeExp *type_one, struct TypeExp *type_two);
-struct TypeExp *Analyze(struct CheckContext *context, struct Expression *node,
-                        struct TypeEnvironment *env,
-                        struct NonGenericTypeList *non_generics);
-
-static void _ReportTypeError(struct CheckContext *context,
-                             struct Expression *node,
-                             const char *error)
-{
-    struct MillieToken start_token = GetToken(context->tokens, node->start_token);
-    struct MillieToken end_token = GetToken(context->tokens, node->end_token);
-
-    AddErrorF(
-        context->errors,
-        start_token.start,
-        end_token.start + end_token.length,
-        "Type Error: %s",
-        error
-    );
-}
-
-void Unify(struct CheckContext *context, struct Expression *node,
-           struct TypeExp *type_one, struct TypeExp *type_two)
-{
-    type_one = PruneTypeExp(type_one);
-    type_two = PruneTypeExp(type_two);
-
-    if (_IsErrorType(type_one) || _IsErrorType(type_two)) {
-        return;
-    }
-
-    // If there's only one `TYPEEXP_VARIABLE` then put it in type_one.
-    // (If there's two it doesn't matter.)
-    if (type_two->type == TYPEEXP_VARIABLE) {
-        struct TypeExp *tmp = type_two;
-        type_two = type_one;
-        type_one = tmp;
-    }
-
-    if (type_one->type == TYPEEXP_VARIABLE) {
-        if (type_one == type_two) { return; }
-        if (_IsTypeContainedWithin(type_one, type_two)) {
-            _ReportTypeError(context, node, "Self-recursive type");
-        } else {
-            type_one->var_instance = type_two;
-        }
-    } else {
-        if (type_one->type != type_two->type) {
-            _ReportTypeError(context, node, "Mismatched types");
-            return;
-        }
-
-        if (type_one->arg_first) {
-            Unify(context, node, type_one->arg_first, type_two->arg_first);
-        }
-        if (type_one->arg_second) {
-            Unify(context, node, type_one->arg_second, type_two->arg_second);
-        }
-    }
-}
-
-struct TypeExp *
-Analyze(struct CheckContext *context, struct Expression *node,
-        struct TypeEnvironment *env, struct NonGenericTypeList *non_generics)
-{
-    switch(node->type) {
-    case EXP_IDENTIFIER:
-        {
-            struct TypeExp *type = _LookupType(
-                context->arena,
-                env,
-                node->identifier_id
-            );
-            if (type == NULL) {
-                _ReportTypeError(context, node, "Unbound identifier");
-                return &ErrorTypeExp;
-            }
-            return type;
-        }
-    case EXP_APPLY:
-        {
-            struct TypeExp *function_type = Analyze(
-                context,
-                node->apply_function,
-                env,
-                non_generics
-            );
-            struct TypeExp *arg_type = Analyze(
-                context,
-                node->apply_argument,
-                env,
-                non_generics
-            );
-            if (_IsErrorType(function_type) || _IsErrorType(arg_type)) {
-                return &ErrorTypeExp;
-            }
-            struct TypeExp *result_type = _MakeTypeVar(context->arena);
-            Unify(
-                context,
-                node,
-                MakeFunctionTypeExp(
-                    context->arena,
-                    arg_type,
-                    result_type
-                ),
-                function_type);
-            return result_type;
-        }
-    case EXP_LAMBDA:
-        {
-            struct TypeExp *arg_type = _MakeTypeVar(context->arena);
-            struct TypeEnvironment *new_env = BindType(
-                context->arena,
-                env,
-                node->lambda_id,
-                arg_type
-            );
-            struct NonGenericTypeList *new_non_generic = ExtendNonGenericTypeList(
-                context->arena,
-                arg_type,
-                non_generics
-            );
-            struct TypeExp *result_type = Analyze(
-                context,
-                node->lambda_body,
-                new_env,
-                new_non_generic
-            );
-            return MakeFunctionTypeExp(context->arena, arg_type, result_type);
-        }
-    case EXP_LET:
-        {
-            struct TypeExp *defn_type = Analyze(
-                context,
-                node->let_value,
-                env,
-                non_generics
-            );
-            defn_type = _MakeGenericTypeExp(
-                context->arena,
-                defn_type,
-                non_generics
-            );
-
-            struct TypeEnvironment *new_env = BindType(
-                context->arena,
-                env,
-                node->let_id,
-                defn_type
-            );
-            return Analyze(context, node->let_body, new_env, non_generics);
-        }
-    case EXP_LETREC:
-        {
-            struct TypeExp *new_type = _MakeTypeVar(context->arena);
-
-            struct TypeEnvironment *new_env = BindType(
-                context->arena,
-                env,
-                node->let_id,
-                new_type
-            );
-            struct NonGenericTypeList *new_non_generic = ExtendNonGenericTypeList(
-                context->arena,
-                new_type,
-                non_generics
-            );
-            struct TypeExp *defn_type = Analyze(
-                context,
-                node->let_value,
-                new_env,
-                new_non_generic
-            );
-            Unify(context, node, new_type, defn_type);
-
-            // Rebind the new type variable to the generic version of the type
-            // so I don't have to re-do new_env.
-            new_type->var_instance = _MakeGenericTypeExp(
-                context->arena,
-                new_type,
-                non_generics
-            );
-
-            return Analyze(context, node->let_body, new_env, non_generics);
-        }
-    case EXP_IF:
-        {
-            struct TypeExp *cond_type, *then_type, *else_type;
-            cond_type = Analyze(context, node->if_test, env, non_generics);
-            Unify(context, node->if_test, cond_type, &BooleanTypeExp);
-            then_type = Analyze(context, node->if_then, env, non_generics);
-            else_type = Analyze(context, node->if_else, env, non_generics);
-            Unify(context, node, then_type, else_type);
-            return then_type;
-        }
-    case EXP_BINARY:
-        {
-            // OK, dumb stuff, because this lets you add functions.
-            struct TypeExp *left, *right;
-            left = Analyze(context, node->binary_left, env, non_generics);
-            right = Analyze(context, node->binary_right, env, non_generics);
-            Unify(context, node, left, right);
-            if (node->binary_operator == TOK_EQUALS) {
-                return &BooleanTypeExp;
-            }
-
-            return left;
-        }
-    case EXP_UNARY:
-        {
-            // This lets you negate functions?
-            struct TypeExp *arg;
-            arg = Analyze(context, node->unary_arg, env, non_generics);
-            return arg;
-        }
-    case EXP_INTEGER_CONSTANT:
-        return &IntegerTypeExp;
-    case EXP_TRUE:
-    case EXP_FALSE:
-        return &BooleanTypeExp;
-    case EXP_INVALID:
-    case EXP_ERROR:
-        _ReportTypeError(context, node, "Invalid expression structure");
-        break;
-    }
-    return &ErrorTypeExp;
-}
-
-struct TypeExp *TypeExpression(
-    struct Arena *arena,
-    struct MillieTokens *tokens,
-    struct Expression *node,
-    struct Errors **errors)
-{
-    struct CheckContext context;
-    context.arena = arena;
-    context.tokens = tokens;
-    context.errors = errors;
-
-    return Analyze(&context, node, NULL, NULL);
-}
-
 static const char *type_names[] = {
     "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
 };
@@ -612,4 +366,422 @@ struct MString *FormatTypeExpression(struct TypeExp *type)
 {
     int counter = 0;
     return _FormatTypeExpressionImpl(type, &counter);
+}
+
+/*
+ * Type checking/inference
+ */
+struct CheckContext {
+    struct Arena *arena;
+    struct Errors **errors;
+    struct MillieTokens *tokens;
+};
+
+static void _ReportTypeError(struct CheckContext *context,
+                             struct Expression *node,
+                             struct MString *error_message)
+{
+    struct MillieToken start_token = GetToken(context->tokens, node->start_token);
+    struct MillieToken end_token = GetToken(context->tokens, node->end_token);
+
+    AddError(
+        context->errors,
+        start_token.start,
+        end_token.start + end_token.length,
+        error_message
+    );
+}
+
+
+typedef enum UnificationError {
+    UNIFY_SELF_RECURSIVE,
+    UNIFY_INVALID_FUNCTION_APPLY,
+    UNIFY_INCONSITENT_RECURSION,
+    UNIFY_IF_CONDITION_BOOLEAN,
+    UNIFY_IF_BRANCHES_SAME,
+    UNIFY_NO_VALID_BINARY_OPERATOR,
+} UnificationError;
+
+struct UnifyContext {
+    struct CheckContext *context;
+    struct Expression *expression;
+    UnificationError error_code;
+    struct TypeExp *original_one;
+    struct TypeExp *original_two;
+};
+
+static void _ReportUnificationFailure(struct UnifyContext *unify_context)
+{
+    struct MStringStatic st;
+    struct MString *error_message = NULL;
+    switch(unify_context->error_code) {
+    case UNIFY_SELF_RECURSIVE:
+        {
+            struct MString *arg_one, *arg_two;
+            arg_one = FormatTypeExpression(unify_context->original_one);
+            arg_two = FormatTypeExpression(unify_context->original_two);
+            error_message = MStringPrintF(
+                "unsupported recursive type: the type '%s' is contained within "
+                "the type '%s'",
+                MStringData(arg_one),
+                MStringData(arg_two)
+            );
+        }
+        break;
+    case UNIFY_INVALID_FUNCTION_APPLY:
+        {
+            struct MString *arg_one, *arg_two;
+            arg_one = FormatTypeExpression(unify_context->original_one);
+            arg_two = FormatTypeExpression(unify_context->original_two);
+            error_message = MStringPrintF(
+                "the function of type '%s' cannot be used as a function of "
+                "type '%s'",
+                MStringData(arg_one),
+                MStringData(arg_two)
+            );
+        }
+        break;
+    case UNIFY_INCONSITENT_RECURSION:
+        {
+            struct MString *arg_one, *arg_two;
+            arg_one = FormatTypeExpression(unify_context->original_one);
+            arg_two = FormatTypeExpression(unify_context->original_two);
+            error_message = MStringPrintF(
+                "inconsistent recursive definition: unable to reconcile the "
+                "two necessary types '%s' and '%s'",
+                MStringData(arg_one),
+                MStringData(arg_two)
+            );
+        }
+        break;
+    case UNIFY_IF_CONDITION_BOOLEAN:
+        {
+            struct MString *arg_one;
+            arg_one = FormatTypeExpression(unify_context->original_one);
+            error_message = MStringPrintF(
+                "condition of an if expression must be a boolean (not '%s')",
+                MStringData(arg_one)
+            );
+        }
+        break;
+    case UNIFY_IF_BRANCHES_SAME:
+        {
+            struct MString *arg_one, *arg_two;
+            arg_one = FormatTypeExpression(unify_context->original_one);
+            arg_two = FormatTypeExpression(unify_context->original_two);
+            error_message = MStringPrintF(
+                "then branch returns '%s' and else branch returns '%s'; both "
+                "branches of the condition must have the same type",
+                MStringData(arg_one),
+                MStringData(arg_two)
+            );
+        }
+        break;
+    case UNIFY_NO_VALID_BINARY_OPERATOR:
+        {
+            struct MString *arg_one, *arg_two;
+            arg_one = FormatTypeExpression(unify_context->original_one);
+            arg_two = FormatTypeExpression(unify_context->original_two);
+            error_message = MStringPrintF(
+                "no operator takes types '%s' and '%s'",
+                MStringData(arg_one),
+                MStringData(arg_two)
+            );
+        }
+        break;
+    }
+    if (!error_message) {
+        error_message = MStringCreateStatic("unification failure", &st);
+    }
+
+    _ReportTypeError(
+        unify_context->context,
+        unify_context->expression,
+        error_message
+    );
+}
+
+static void _UnifyImpl(struct UnifyContext *context, struct TypeExp *type_one,
+                       struct TypeExp *type_two)
+{
+    type_one = PruneTypeExp(type_one);
+    type_two = PruneTypeExp(type_two);
+
+    if (_IsErrorType(type_one) || _IsErrorType(type_two)) {
+        return;
+    }
+
+    // If there's only one `TYPEEXP_VARIABLE` then put it in type_one.
+    // (If there's two it doesn't matter.)
+    if (type_two->type == TYPEEXP_VARIABLE) {
+        struct TypeExp *tmp = type_two;
+        type_two = type_one;
+        type_one = tmp;
+    }
+
+    if (type_one->type == TYPEEXP_VARIABLE) {
+        if (type_one == type_two) { return; }
+        if (_IsTypeContainedWithin(type_one, type_two)) {
+            context->error_code = UNIFY_SELF_RECURSIVE;
+            _ReportUnificationFailure(context);
+        } else {
+            type_one->var_instance = type_two;
+        }
+    } else {
+        if (type_one->type != type_two->type) {
+            _ReportUnificationFailure(context);
+            return;
+        }
+
+        if (type_one->arg_first) {
+            _UnifyImpl(
+                context,
+                type_one->arg_first,
+                type_two->arg_first
+            );
+        }
+        if (type_one->arg_second) {
+            _UnifyImpl(
+                context,
+                type_one->arg_second,
+                type_two->arg_second
+            );
+        }
+    }
+}
+
+static void _Unify(struct CheckContext *context, struct Expression *node,
+                   UnificationError error_code, struct TypeExp *type_one,
+                   struct TypeExp *type_two)
+{
+    struct UnifyContext unify_context;
+    unify_context.context = context;
+    unify_context.expression = node;
+    unify_context.error_code = error_code;
+    unify_context.original_one = type_one;
+    unify_context.original_two = type_two;
+
+    return _UnifyImpl(&unify_context, type_one, type_two);
+}
+
+
+static struct TypeExp *_Analyze(struct CheckContext *context,
+                                struct Expression *node,
+                                struct TypeEnvironment *env,
+                                struct NonGenericTypeList *non_generics)
+{
+    switch(node->type) {
+    case EXP_IDENTIFIER:
+        {
+            struct TypeExp *type = _LookupType(
+                context->arena,
+                env,
+                node->identifier_id
+            );
+            if (type == NULL) {
+                struct MStringStatic st;
+                _ReportTypeError(
+                    context,
+                    node,
+                    MStringCreateStatic("Unbound identifier", &st)
+                );
+                return &ErrorTypeExp;
+            }
+            return type;
+        }
+    case EXP_APPLY:
+        {
+            struct TypeExp *function_type = _Analyze(
+                context,
+                node->apply_function,
+                env,
+                non_generics
+            );
+            struct TypeExp *arg_type = _Analyze(
+                context,
+                node->apply_argument,
+                env,
+                non_generics
+            );
+            if (_IsErrorType(function_type) || _IsErrorType(arg_type)) {
+                return &ErrorTypeExp;
+            }
+            struct TypeExp *result_type = _MakeTypeVar(context->arena);
+            _Unify(
+                context,
+                node,
+                UNIFY_INVALID_FUNCTION_APPLY,
+                MakeFunctionTypeExp(
+                    context->arena,
+                    arg_type,
+                    result_type
+                ),
+                function_type);
+            return result_type;
+        }
+    case EXP_LAMBDA:
+        {
+            struct TypeExp *arg_type = _MakeTypeVar(context->arena);
+            struct TypeEnvironment *new_env = BindType(
+                context->arena,
+                env,
+                node->lambda_id,
+                arg_type
+            );
+            struct NonGenericTypeList *new_non_generic;
+            new_non_generic = _ExtendNonGenericTypeList(
+                context->arena,
+                arg_type,
+                non_generics
+            );
+            struct TypeExp *result_type = _Analyze(
+                context,
+                node->lambda_body,
+                new_env,
+                new_non_generic
+            );
+            return MakeFunctionTypeExp(context->arena, arg_type, result_type);
+        }
+    case EXP_LET:
+        {
+            struct TypeExp *defn_type = _Analyze(
+                context,
+                node->let_value,
+                env,
+                non_generics
+            );
+            defn_type = _MakeGenericTypeExp(
+                context->arena,
+                defn_type,
+                non_generics
+            );
+
+            struct TypeEnvironment *new_env = BindType(
+                context->arena,
+                env,
+                node->let_id,
+                defn_type
+            );
+            return _Analyze(context, node->let_body, new_env, non_generics);
+        }
+    case EXP_LETREC:
+        {
+            struct TypeExp *new_type = _MakeTypeVar(context->arena);
+
+            struct TypeEnvironment *new_env = BindType(
+                context->arena,
+                env,
+                node->let_id,
+                new_type
+            );
+            struct NonGenericTypeList *new_non_generic;
+            new_non_generic = _ExtendNonGenericTypeList(
+                context->arena,
+                new_type,
+                non_generics
+            );
+            struct TypeExp *defn_type = _Analyze(
+                context,
+                node->let_value,
+                new_env,
+                new_non_generic
+            );
+            _Unify(
+                context,
+                node,
+                UNIFY_INCONSITENT_RECURSION,
+                new_type,
+                defn_type
+            );
+
+            // Rebind the new type variable to the generic version of the type
+            // so I don't have to re-do new_env.
+            new_type->var_instance = _MakeGenericTypeExp(
+                context->arena,
+                new_type,
+                non_generics
+            );
+
+            return _Analyze(context, node->let_body, new_env, non_generics);
+        }
+    case EXP_IF:
+        {
+            struct TypeExp *cond_type, *then_type, *else_type;
+            cond_type = _Analyze(context, node->if_test, env, non_generics);
+            _Unify(
+                context,
+                node->if_test,
+                UNIFY_IF_CONDITION_BOOLEAN,
+                cond_type,
+                &BooleanTypeExp
+            );
+            then_type = _Analyze(context, node->if_then, env, non_generics);
+            else_type = _Analyze(context, node->if_else, env, non_generics);
+            _Unify(
+                context,
+                node,
+                UNIFY_IF_BRANCHES_SAME,
+                then_type,
+                else_type
+            );
+            return then_type;
+        }
+    case EXP_BINARY:
+        {
+            // OK, dumb stuff, because this lets you add functions.
+            struct TypeExp *left, *right;
+            left = _Analyze(context, node->binary_left, env, non_generics);
+            right = _Analyze(context, node->binary_right, env, non_generics);
+            _Unify(
+                context,
+                node,
+                UNIFY_NO_VALID_BINARY_OPERATOR,
+                left,
+                right
+            );
+            if (node->binary_operator == TOK_EQUALS) {
+                return &BooleanTypeExp;
+            }
+
+            return left;
+        }
+    case EXP_UNARY:
+        {
+            // This lets you negate functions?
+            struct TypeExp *arg;
+            arg = _Analyze(context, node->unary_arg, env, non_generics);
+            return arg;
+        }
+    case EXP_INTEGER_CONSTANT:
+        return &IntegerTypeExp;
+    case EXP_TRUE:
+    case EXP_FALSE:
+        return &BooleanTypeExp;
+    case EXP_INVALID:
+    case EXP_ERROR:
+        {
+            struct MStringStatic st;
+            _ReportTypeError(
+                context,
+                node,
+                MStringCreateStatic("Invalid expression structure", &st)
+            );
+        }
+        break;
+    }
+    return &ErrorTypeExp;
+}
+
+struct TypeExp *TypeExpression(
+    struct Arena *arena,
+    struct MillieTokens *tokens,
+    struct Expression *node,
+    struct Errors **errors)
+{
+    struct CheckContext context;
+    context.arena = arena;
+    context.tokens = tokens;
+    context.errors = errors;
+
+    return _Analyze(&context, node, NULL, NULL);
 }

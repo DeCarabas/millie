@@ -38,6 +38,15 @@ struct MString *MStringCreate(const char *str)
     return MStringCreateN(str, (unsigned int)strlen(str));
 }
 
+struct MString *MStringCreateStatic(const char *str, struct MStringStatic *blk)
+{
+    struct MString *result = (struct MString *)blk;
+    result->references = -1;
+    result->length = strlen(str);
+    result->str = str;
+    return result;
+}
+
 void MStringFree(struct MString **string_ptr)
 {
     struct MString *string = *string_ptr;

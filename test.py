@@ -1,4 +1,4 @@
-#!/user/local/bin/python3
+#!/usr/local/bin/python3
 import locale
 
 from pathlib import Path
@@ -32,17 +32,26 @@ def run_test(path):
 
     result = 'ok'
     details = None
-    if cp.returncode:
+
+    expect_failure = 'ExpectFailure' in spec
+    if cp.returncode and not expect_failure:
         result = 'fail'
         details = 'millie returned exit code {}'.format(cp.returncode)
     else:
         actual_type = cp.stdout.strip()
-        if actual_type != spec['ExpectedType']:
-            result = 'fail'
-            details = "Expected type '{}' got '{}'".format(
-                spec['ExpectedType'],
-                actual_type
-            )
+        if 'ExpectedType' in spec:
+            if actual_type != spec['ExpectedType']:
+                result = 'fail'
+                details = "Expected type '{}' got '{}'".format(
+                    spec['ExpectedType'],
+                    actual_type
+                )
+        if 'ExpectedError' in spec:
+            if not spec['ExpectedError'] in cp.stderr:
+                result = 'fail'
+                details = "Expected error '{}' to be reported".format(
+                    spec['ExpectedError'],
+                )
 
     return (result, path, elapsed, details, cp.stderr, cp.stdout)
 

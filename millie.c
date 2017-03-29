@@ -36,7 +36,8 @@ static void PrintErrors(const char *fname, struct MillieTokens *tokens,
             &end_col
         );
 
-        printf(
+        fprintf(
+            stderr,
             "%s:%d,%d: error: %s\n",
             fname,
             start_line,
@@ -48,19 +49,19 @@ static void PrintErrors(const char *fname, struct MillieTokens *tokens,
         if (end_line != start_line) {
             end_col = MStringLength(line);
         }
-        printf("%s\n", MStringData(line));
+        fprintf(stderr, "%s\n", MStringData(line));
         for(unsigned int i = 1; i <= MStringLength(line); i++) {
             if (i < start_col) {
-                printf(" ");
+                fprintf(stderr, " ");
             } else if (i == start_col) {
-                printf("^");
+                fprintf(stderr, "^");
             } else if (i < end_col) {
-                printf("~");
+                fprintf(stderr, "~");
             } else {
-                printf(" ");
+                fprintf(stderr, " ");
             }
         }
-        printf("\n");
+        fprintf(stderr, "\n");
         MStringFree(&line);
 
         error = error->next;
@@ -134,6 +135,7 @@ int main(int argc, const char *argv[])
     struct TypeExp *type = TypeExpression(arena, tokens, expression, &errors);
     if (errors) {
         PrintErrors(fname, tokens, errors);
+        return 1;
     }
 
     struct MString *typeexp = FormatTypeExpression(type);
