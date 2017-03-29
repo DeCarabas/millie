@@ -16,27 +16,54 @@
  * Driver
  */
 
-void PrintTypeExpression(struct TypeExp *type);
-void PrintTypeExpression(struct TypeExp *type)
+static const char *type_names[] = {
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+};
+
+void _PrintTypeExpressionImpl(struct TypeExp *type, int *counter)
 {
+    type = PruneTypeExp(type);
     switch(type->type) {
     case TYPEEXP_ERROR:
+        printf("{{ERROR}}\n");
+        break;
     case TYPEEXP_VARIABLE:
     case TYPEEXP_GENERIC_VARIABLE:
+        {
+            if (type->var_temp_other == NULL) {
+                type->var_temp_other = (struct TypeExp *)type_names[*counter];
+                (*counter)++;
+            }
+            printf("'%s", (const char *)type->var_temp_other);
+        }
+        break;
     case TYPEEXP_INT:
+        printf("int");
+        break;
     case TYPEEXP_BOOL:
+        printf("bool");
+        break;
     case TYPEEXP_FUNC:
+        printf("( ");
+        _PrintTypeExpressionImpl(type->func_from, counter);
+        printf(" -> ");
+        _PrintTypeExpressionImpl(type->func_to, counter);
+        printf(" )");
+        break;
     case TYPEEXP_INVALID:
-        printf("???\n");
+        printf("{{INVALID}}");
     }
 }
 
-void PrintErrors(const char *fname, struct MillieTokens *tokens,
-                 struct Errors *errors);
-void PrintTokens(struct MillieTokens *tokens);
+void PrintTypeExpression(struct TypeExp *type)
+{
+    int counter = 0;
+    _PrintTypeExpressionImpl(type, &counter);
+    printf("\n");
+}
 
-void PrintErrors(const char *fname, struct MillieTokens *tokens,
-                 struct Errors *errors)
+static void PrintErrors(const char *fname, struct MillieTokens *tokens,
+                        struct Errors *errors)
 {
     struct ErrorReport *error = FirstError(errors);
     while(error) {
@@ -86,40 +113,40 @@ void PrintErrors(const char *fname, struct MillieTokens *tokens,
     }
 }
 
-void PrintTokens(struct MillieTokens *tokens)
-{
-    for(unsigned int i = 0; i < tokens->token_array->item_count; i++) {
-        struct MillieToken token;
-        token = *(struct MillieToken *)(ArrayListIndex(tokens->token_array, i));
+/* static void PrintTokens(struct MillieTokens *tokens) */
+/* { */
+/*     for(unsigned int i = 0; i < tokens->token_array->item_count; i++) { */
+/*         struct MillieToken token; */
+/*         token = *(struct MillieToken *)(ArrayListIndex(tokens->token_array, i)); */
 
-        struct MString *substr = MStringCreateN(
-            MStringData(tokens->buffer) + token.start,
-            token.length
-        );
-        printf("%03d: %s\n", token.type, MStringData(substr));
-        MStringFree(&substr);
-    }
-}
+/*         struct MString *substr = MStringCreateN( */
+/*             MStringData(tokens->buffer) + token.start, */
+/*             token.length */
+/*         ); */
+/*         printf("%03d: %s\n", token.type, MStringData(substr)); */
+/*         MStringFree(&substr); */
+/*     } */
+/* } */
 
-void PrintIndent(int indent);
-void PrintIndent(int indent)
+
+static void PrintIndent(int indent)
 {
     for(int i = 0; i < indent; i++) {
         printf("  ");
     }
 }
 
-void PrintTree(struct SymbolTable *table, struct MillieTokens *tokens,
-               struct Expression *expression, int indent);
-void PrintTree(struct SymbolTable *table, struct MillieTokens *tokens,
-               struct Expression *expression, int indent)
+static void _PrintTreeImpl(struct SymbolTable *table,
+                           struct MillieTokens *tokens,
+                           struct Expression *expression,
+                           int indent)
 {
     switch(expression->type) {
     case EXP_LAMBDA:
         {
             struct MString *id = FindSymbolKey(table, expression->lambda_id);
             PrintIndent(indent); printf("lambda %s =>\n", MStringData(id));
-            PrintTree(table, tokens, expression->lambda_body, indent+1);
+            _PrintTreeImpl(table, tokens, expression->lambda_body, indent+1);
             MStringFree(&id);
         }
         break;
@@ -135,8 +162,8 @@ void PrintTree(struct SymbolTable *table, struct MillieTokens *tokens,
     case EXP_APPLY:
         {
             PrintIndent(indent); printf("apply\n");
-            PrintTree(table, tokens, expression->apply_function, indent+1);
-            PrintTree(table, tokens, expression->apply_argument, indent+1);
+            _PrintTreeImpl(table, tokens, expression->apply_function, indent+1);
+            _PrintTreeImpl(table, tokens, expression->apply_argument, indent+1);
         }
         break;
 
@@ -144,9 +171,9 @@ void PrintTree(struct SymbolTable *table, struct MillieTokens *tokens,
         {
             struct MString *id = FindSymbolKey(table, expression->let_id);
             PrintIndent(indent); printf("let %s = \n", MStringData(id));
-            PrintTree(table, tokens, expression->let_value, indent+1);
+            _PrintTreeImpl(table, tokens, expression->let_value, indent+1);
             PrintIndent(indent); printf("in\n");
-            PrintTree(table, tokens, expression->let_body, indent+1);
+            _PrintTreeImpl(table, tokens, expression->let_body, indent+1);
             MStringFree(&id);
         }
         break;
@@ -154,9 +181,9 @@ void PrintTree(struct SymbolTable *table, struct MillieTokens *tokens,
         {
             struct MString *id = FindSymbolKey(table, expression->let_id);
             PrintIndent(indent); printf("let rec %s = \n", MStringData(id));
-            PrintTree(table, tokens, expression->let_value, indent+1);
+            _PrintTreeImpl(table, tokens, expression->let_value, indent+1);
             PrintIndent(indent); printf("in\n");
-            PrintTree(table, tokens, expression->let_body, indent+1);
+            _PrintTreeImpl(table, tokens, expression->let_body, indent+1);
             MStringFree(&id);
         }
         break;
@@ -183,11 +210,11 @@ void PrintTree(struct SymbolTable *table, struct MillieTokens *tokens,
     case EXP_IF:
         {
             PrintIndent(indent); printf("if\n");
-            PrintTree(table, tokens, expression->if_test, indent+1);
+            _PrintTreeImpl(table, tokens, expression->if_test, indent+1);
             PrintIndent(indent); printf("then\n");
-            PrintTree(table, tokens, expression->if_then, indent+1);
+            _PrintTreeImpl(table, tokens, expression->if_then, indent+1);
             PrintIndent(indent); printf("else\n");
-            PrintTree(table, tokens, expression->if_else, indent+1);
+            _PrintTreeImpl(table, tokens, expression->if_else, indent+1);
         }
         break;
 
@@ -196,8 +223,8 @@ void PrintTree(struct SymbolTable *table, struct MillieTokens *tokens,
             uint32_t bin_tok = expression->binary_left->end_token + 1;
             struct MString *operator = ExtractToken(tokens, bin_tok);
             PrintIndent(indent); printf("binary %s\n", MStringData(operator));
-            PrintTree(table, tokens, expression->binary_left, indent+1);
-            PrintTree(table, tokens, expression->binary_right, indent+1);
+            _PrintTreeImpl(table, tokens, expression->binary_left, indent+1);
+            _PrintTreeImpl(table, tokens, expression->binary_right, indent+1);
             MStringFree(&operator);
         }
         break;
@@ -207,7 +234,7 @@ void PrintTree(struct SymbolTable *table, struct MillieTokens *tokens,
             struct MString *operator;
             operator = ExtractToken(tokens, expression->start_token);
             PrintIndent(indent); printf("unary %s\n", MStringData(operator));
-            PrintTree(table, tokens, expression->unary_arg, indent+1);
+            _PrintTreeImpl(table, tokens, expression->unary_arg, indent+1);
             MStringFree(&operator);
         }
         break;
@@ -221,6 +248,14 @@ void PrintTree(struct SymbolTable *table, struct MillieTokens *tokens,
         break;
     }
 }
+
+static void PrintTree(struct SymbolTable *table,
+                      struct MillieTokens *tokens,
+                      struct Expression *expression)
+{
+    _PrintTreeImpl(table, tokens, expression, 0);
+}
+
 
 int main()
 {
@@ -248,7 +283,7 @@ int main()
         return 1;
     }
 
-    PrintTree(symbol_table, tokens, expression, 0);
+    PrintTree(symbol_table, tokens, expression);
     printf("\n");
 
     struct TypeExp *type = TypeExpression(arena, tokens, expression, &errors);
