@@ -1,0 +1,10 @@
+# ExpectFailure: True
+# ExpectedError: either the argument or return type is incompatible
+let rec factorial =
+    fn n =>
+       if n = 0 then
+           1
+       else
+           n * factorial (n + -1)
+in
+    factorial true

@@ -421,8 +421,8 @@ static void _ReportUnificationFailure(struct UnifyContext *unify_context)
             arg_one = FormatTypeExpression(unify_context->original_one);
             arg_two = FormatTypeExpression(unify_context->original_two);
             error_message = MStringPrintF(
-                "unsupported recursive type: the type '%s' is contained within "
-                "the type '%s'",
+                "unsupported recursive type: the type \"%s\" is contained "
+                "within the type \"%s\"",
                 MStringData(arg_one),
                 MStringData(arg_two)
             );
@@ -434,10 +434,11 @@ static void _ReportUnificationFailure(struct UnifyContext *unify_context)
             arg_one = FormatTypeExpression(unify_context->original_one);
             arg_two = FormatTypeExpression(unify_context->original_two);
             error_message = MStringPrintF(
-                "the function of type '%s' cannot be used as a function of "
-                "type '%s'",
-                MStringData(arg_one),
-                MStringData(arg_two)
+                "the function of type \"%s\" cannot be used as a function of "
+                "type \"%s\"; either the argument or return type is "
+                "incompatible",
+                MStringData(arg_two),
+                MStringData(arg_one)
             );
         }
         break;
@@ -448,7 +449,7 @@ static void _ReportUnificationFailure(struct UnifyContext *unify_context)
             arg_two = FormatTypeExpression(unify_context->original_two);
             error_message = MStringPrintF(
                 "inconsistent recursive definition: unable to reconcile the "
-                "two necessary types '%s' and '%s'",
+                "two necessary types \"%s\" and \"%s\"",
                 MStringData(arg_one),
                 MStringData(arg_two)
             );
@@ -459,7 +460,7 @@ static void _ReportUnificationFailure(struct UnifyContext *unify_context)
             struct MString *arg_one;
             arg_one = FormatTypeExpression(unify_context->original_one);
             error_message = MStringPrintF(
-                "condition of an if expression must be a boolean (not '%s')",
+                "condition of an if expression must be a boolean (not \"%s\")",
                 MStringData(arg_one)
             );
         }
@@ -470,8 +471,8 @@ static void _ReportUnificationFailure(struct UnifyContext *unify_context)
             arg_one = FormatTypeExpression(unify_context->original_one);
             arg_two = FormatTypeExpression(unify_context->original_two);
             error_message = MStringPrintF(
-                "then branch returns '%s' and else branch returns '%s'; both "
-                "branches of the condition must have the same type",
+                "then branch returns \"%s\" and else branch returns \"%s\"; "
+                "both branches of the condition must have the same type",
                 MStringData(arg_one),
                 MStringData(arg_two)
             );
@@ -483,7 +484,7 @@ static void _ReportUnificationFailure(struct UnifyContext *unify_context)
             arg_one = FormatTypeExpression(unify_context->original_one);
             arg_two = FormatTypeExpression(unify_context->original_two);
             error_message = MStringPrintF(
-                "no operator takes types '%s' and '%s'",
+                "no operator takes types \"%s\" and \"%s\"",
                 MStringData(arg_one),
                 MStringData(arg_two)
             );

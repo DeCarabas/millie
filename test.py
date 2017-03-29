@@ -57,7 +57,7 @@ def run_test(path):
 
 
 locale.setlocale(locale.LC_ALL, '')
-for path in Path('./tests').glob('*.millie'):
+for path in Path('./tests').glob('**/*.millie'):
     result, path, elapsed, details, stderr, stdout = run_test(path)
     print('[{0:<4}] {1} ({2:0.3}ms)'.format(result, path, elapsed * 1000))
     if result == 'fail':
