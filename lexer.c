@@ -201,6 +201,10 @@ struct MillieTokens *LexBuffer(struct MString *buffer, struct Errors **errors)
             ptr++;
             break;
 
+        case '#':
+            while (*ptr != '\n') { ptr++; }
+            break;
+
         case 'e':
             {
                 struct KeywordToken kws[] = {
