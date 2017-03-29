@@ -365,7 +365,9 @@ struct MString *_FormatTypeExpressionImpl(struct TypeExp *type, int *counter)
 struct MString *FormatTypeExpression(struct TypeExp *type)
 {
     int counter = 0;
-    return _FormatTypeExpressionImpl(type, &counter);
+    struct MString *str = _FormatTypeExpressionImpl(type, &counter);
+    _CleanupTypeVariables(type);
+    return str;
 }
 
 /*
