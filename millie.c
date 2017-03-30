@@ -132,7 +132,7 @@ int main(int argc, const char *argv[])
         return 1;
     }
 
-    struct TypeExp *type = TypeExpression(arena, tokens, expression, &errors);
+    struct TypeExp *type = GetExpressionType(arena, tokens, expression, &errors);
     if (errors) {
         PrintErrors(fname, tokens, errors);
         return 1;

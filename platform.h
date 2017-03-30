@@ -266,5 +266,41 @@ struct Expression *ParseExpression(struct Arena *arena,
                                    struct SymbolTable *symbol_table,
                                    struct Errors **errors);
 
+/*
+ * Typing
+ */
+typedef enum {
+    TYPEEXP_INVALID = 0,
+    TYPEEXP_ERROR,
+    TYPEEXP_VARIABLE,
+    TYPEEXP_GENERIC_VARIABLE,
+    TYPEEXP_FUNC,
+    TYPEEXP_INT,
+    TYPEEXP_BOOL,
+} TypeExpType;
+
+struct TypeExp {
+    TypeExpType type;
+    union
+    {
+        struct TypeExp *arg_first;
+        struct TypeExp *func_from;
+        struct TypeExp *var_instance;
+    };
+    union
+    {
+        struct TypeExp *arg_second;
+        struct TypeExp *func_to;
+        struct TypeExp *var_temp_other;
+    };
+};
+
+struct MString *FormatTypeExpression(struct TypeExp *type);
+struct TypeExp *GetExpressionType(
+    struct Arena *arena,
+    struct MillieTokens *tokens,
+    struct Expression *node,
+    struct Errors **errors);
+
 
 #define PLATFORM_INCLUDED
