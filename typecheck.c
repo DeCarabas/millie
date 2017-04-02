@@ -713,6 +713,24 @@ static struct TypeExp *_AnalyzeIf(
     return then_type;
 }
 
+struct OperatorEntry {
+    MILLIE_TOKEN token;
+    struct TypeExp *left;
+    struct TypeExp *right;
+    struct TypeExp *result;
+};
+
+struct OperatorEntry _operators[] = {
+    { TOK_PLUS,   &_IntegerTypeExp, &_IntegerTypeExp, &_IntegerTypeExp },
+    { TOK_MINUS,  &_IntegerTypeExp, &_IntegerTypeExp, &_IntegerTypeExp },
+    { TOK_STAR,   &_IntegerTypeExp, &_IntegerTypeExp, &_IntegerTypeExp },
+    { TOK_SLASH,  &_IntegerTypeExp, &_IntegerTypeExp, &_IntegerTypeExp },
+
+    { TOK_EQUALS, NULL,             NULL,             &_BooleanTypeExp },
+
+    { TOK_EOF, 0, 0, 0 },
+};
+
 static struct TypeExp *_AnalyzeBinary(
     struct CheckContext *context,
     struct Expression *node,
@@ -724,13 +742,37 @@ static struct TypeExp *_AnalyzeBinary(
     struct TypeExp *left, *right;
     left = _Analyze(context, node->binary_left, env, non_generics);
     right = _Analyze(context, node->binary_right, env, non_generics);
-    _Unify(context, node, UNIFY_NO_VALID_BINARY_OPERATOR, left, right);
 
-    if (node->binary_operator == TOK_EQUALS) {
-        return &_BooleanTypeExp;
+    struct OperatorEntry *op = _operators;
+    while(op->token != TOK_EOF) {
+        if (op->token == node->binary_operator) {
+            if (op->left) {
+                _Unify(
+                    context,
+                    node,
+                    UNIFY_NO_VALID_BINARY_OPERATOR,
+                    left,
+                    op->left
+                );
+            }
+            if (op->right) {
+                _Unify(
+                    context,
+                    node,
+                    UNIFY_NO_VALID_BINARY_OPERATOR,
+                    right,
+                    op->right
+                );
+            }
+
+            _Unify(context, node, UNIFY_NO_VALID_BINARY_OPERATOR, left, right);
+            return op->result;
+        }
+        op++;
     }
 
-    return left;
+    Fail("Binary operator not found in type table");
+    return &_ErrorTypeExp;
 }
 
 static struct TypeExp *_AnalyzeUnary(
