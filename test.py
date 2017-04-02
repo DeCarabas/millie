@@ -25,10 +25,18 @@ test_result = namedtuple(
 )
 
 
+def parse_bool(val):
+    val = val.lower()
+    return val in ('true', 1, 'yes', 'y')
+
+
 def run_test(path):
     spec = read_test_spec(path)
 
-    if 'Disabled' in spec:
+    if (
+        ('Disabled' in spec and parse_bool(spec['Disabled'])) or
+        ('Enabled' in spec and not parse_bool(spec['Enabled']))
+    ):
         return test_result(
             result='skip',
             path=path,
