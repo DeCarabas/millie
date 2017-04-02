@@ -12,6 +12,7 @@
 #include "parser.c"
 #include "typecheck.c"
 #include "compiler.c"
+#include "runtime.c"
 
 /*
  * Driver
@@ -201,6 +202,9 @@ int main(int argc, const char *argv[])
             PrintErrors(fname, tokens, errors);
             return 1;
         }
+
+        uint64_t result = EvaluateCode(&compiled_expression);
+        printf("%llu\n", result);
     }
 
     if (verbose) {

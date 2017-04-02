@@ -67,15 +67,22 @@ def run_test(path):
         result = 'fail'
         details = 'millie returned exit code {}'.format(cp.returncode)
     else:
-        actual_type = cp.stdout.strip()
-        if 'ExpectedType' in spec:
-            if actual_type != spec['ExpectedType']:
+        actual = cp.stdout.strip()
+        if 'Expected' in spec:
+            if actual != spec['Expected']:
+                result = 'fail'
+                details = 'Expected "{}" got "{}"'.format(
+                    spec['Expected'],
+                    actual
+                )
+        elif 'ExpectedType' in spec:
+            if actual != spec['ExpectedType']:
                 result = 'fail'
                 details = 'Expected type "{}" got "{}"'.format(
                     spec['ExpectedType'],
-                    actual_type
+                    actual
                 )
-        if 'ExpectedError' in spec:
+        else:
             if not spec['ExpectedError'] in cp.stderr:
                 result = 'fail'
                 details = "Expected error '{}' to be reported".format(

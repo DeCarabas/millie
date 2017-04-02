@@ -8,18 +8,11 @@ struct CompileContext {
     int code_capacity;
 
     uint8_t integer_registers;
+    size_t max_registers;
 
     struct Errors **errors;
     struct MillieTokens *tokens;
 };
-
-typedef enum MILLIE_OPCODE {
-    OP_HALT,
-    OP_LOADI_8,
-    OP_LOADI_16,
-    OP_LOADI_32,
-    OP_LOADI_64,
-} MILLIE_OPCODE;
 
 static void _ReportCompileError(struct CompileContext *context,
                                 struct Expression *expression,
@@ -91,6 +84,7 @@ static void _WriteInstructionU64(struct CompileContext *context, uint64_t value)
 static uint8_t _GetFreeIntRegister(struct CompileContext *context)
 {
     context->integer_registers++;
+    context->max_registers++;
     return context->integer_registers - 1;
 }
 
@@ -148,12 +142,6 @@ static uint8_t _CompileExpression(struct CompileContext *context,
     return 0;
 }
 
-struct CompiledExpression {
-    uint8_t *code;
-    size_t code_length;
-    uint8_t result_register;
-};
-
 #define INITIAL_CODE_CAPACITY (64)
 
 void CompileExpression(struct Expression *expression,
@@ -167,10 +155,15 @@ void CompileExpression(struct Expression *expression,
     context.code_capacity = INITIAL_CODE_CAPACITY;
 
     context.integer_registers = 0;
+    context.max_registers = 0;
+
     context.errors = errors;
     context.tokens = tokens;
 
     result->result_register = _CompileExpression(&context, expression);
+    _WriteInstructionU8(&context, OP_HALT);
+
     result->code = context.code;
     result->code_length = context.code_write - context.code;
+    result->register_count = context.max_registers;
 }

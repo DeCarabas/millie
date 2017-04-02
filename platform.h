@@ -298,5 +298,25 @@ struct TypeExp *GetExpressionType(
     struct MillieTokens *tokens,
     struct Errors **errors);
 
+/*
+ * Compiler/VM
+ */
+typedef enum MILLIE_OPCODE {
+#define OPCODE(name)  OP_##name ,
+#include "opcodes.inc"
+#undef OPCODE
+} MILLIE_OPCODE;
+
+struct CompiledExpression {
+    uint8_t *code;
+    size_t code_length;
+    size_t register_count;
+    uint8_t result_register;
+};
+
+void CompileExpression(struct Expression *expression,
+                       struct MillieTokens *tokens,
+                       struct Errors **errors,
+                       struct CompiledExpression *result);
 
 #define PLATFORM_INCLUDED

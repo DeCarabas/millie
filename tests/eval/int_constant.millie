@@ -1,3 +1,4 @@
 # Compiler test for a integer constant.
 #
+# Expected: 5
 5
