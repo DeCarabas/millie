@@ -2,6 +2,11 @@
 #include "platform.h"
 #endif
 
+struct CompileBinding {
+    Symbol symbol;
+    uint8_t reg;
+};
+
 struct CompileContext {
     uint8_t *code;
     uint8_t *code_write;
@@ -9,6 +14,10 @@ struct CompileContext {
 
     uint8_t integer_registers;
     size_t max_registers;
+
+    struct CompileBinding *bindings;
+    int binding_top;
+    int binding_capacity;
 
     struct Errors **errors;
     struct MillieTokens *tokens;
@@ -88,6 +97,25 @@ static uint8_t _GetFreeIntRegister(struct CompileContext *context)
     return context->integer_registers - 1;
 }
 
+static void _PushBinding(struct CompileContext *context,
+                         Symbol symbol,
+                         uint8_t reg)
+{
+    if (context->binding_top == context->binding_capacity) {
+        context->binding_capacity *= 2;
+        context->bindings = realloc(context->code, context->binding_capacity);
+    }
+
+    context->bindings[context->binding_top].symbol = symbol;
+    context->bindings[context->binding_top].reg = reg;
+    context->binding_top++;
+}
+
+static void _PopBinding(struct CompileContext *context)
+{
+    context->binding_top--;
+}
+
 static uint8_t _CompileExpression(struct CompileContext *context,
                                    struct Expression *expression);
 
@@ -115,16 +143,40 @@ static uint8_t _CompileIntegerLiteral(struct CompileContext *context,
     return reg;
 }
 
+static uint8_t _CompileLet(struct CompileContext *context,
+                           struct Expression *expression)
+{
+    uint8_t dest_reg = _CompileExpression(context, expression->let_value);
+    _PushBinding(context, expression->let_id, dest_reg);
+    uint8_t result = _CompileExpression(context, expression->let_body);
+    _PopBinding(context);
+    return result;
+}
+
+static uint8_t _CompileIdentifier(struct CompileContext *context,
+                                     struct Expression *expression)
+{
+    for(int i = context->binding_top; i >= 0; i--) {
+        if (context->bindings[i].symbol == expression->identifier_id) {
+            return context->bindings[i].reg;
+        }
+    }
+
+    _ReportCompileError(context, expression, "Unbound identifier");
+    return 0;
+}
+
+
 static uint8_t _CompileExpression(struct CompileContext *context,
                                   struct Expression *expression)
 {
     switch(expression->type) {
     case EXP_INTEGER_CONSTANT: return _CompileIntegerLiteral(context, expression);
+    case EXP_LET: return _CompileLet(context, expression);
+    case EXP_IDENTIFIER: return _CompileIdentifier(context, expression);
     case EXP_ERROR: break;
     case EXP_LAMBDA:
-    case EXP_IDENTIFIER:
     case EXP_APPLY:
-    case EXP_LET:
     case EXP_LETREC:
     case EXP_TRUE:
     case EXP_FALSE:
@@ -142,6 +194,7 @@ static uint8_t _CompileExpression(struct CompileContext *context,
     return 0;
 }
 
+#define INITIAL_BINDING_CAPACITY (64)
 #define INITIAL_CODE_CAPACITY (64)
 
 void CompileExpression(struct Expression *expression,
@@ -156,6 +209,10 @@ void CompileExpression(struct Expression *expression,
 
     context.integer_registers = 0;
     context.max_registers = 0;
+
+    context.bindings = malloc(INITIAL_BINDING_CAPACITY);
+    context.binding_top = 0;
+    context.binding_capacity = INITIAL_BINDING_CAPACITY;
 
     context.errors = errors;
     context.tokens = tokens;

@@ -1,6 +1,6 @@
 # Compiler test for a simple let.
 #
-# Enabled: False
+# Expected: 5
 let
   x = 5
 in
