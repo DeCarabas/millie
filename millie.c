@@ -104,15 +104,66 @@ static struct MString *ReadFile(const char *filename)
     return buffer;
 }
 
+static void _print_usage()
+{
+    printf(
+        "Usage: millie [switches] <input file>\n"
+        "  --print-type  -t  Print the type of the expression in the input\n"
+        "                    file to stdout, instead of evaluating.\n"
+        "  --verbose     -v  Print various other things to stdout.\n"
+    );
+}
+
 int main(int argc, const char *argv[])
 {
-    // TODO: Proper command line handling, I suppose.
-    if (argc != 2) {
-        printf("Usage: %s <file>\n", argv[0]);
+    const char *fname = NULL;
+    bool print_type = false;
+    bool verbose = false;
+    for(int i = 1; i < argc; i++) {
+        const char *arg = argv[i];
+        if (arg[0] == '-') {
+            if (strcmp(arg, "--verbose") == 0) {
+                verbose = true;
+            } else if (strcmp(arg, "--print-type") == 0) {
+                print_type = true;
+            } else if (strcmp(arg, "--help") == 0) {
+                _print_usage();
+                return 0;
+            } else if (arg[1] == '-') {
+                fprintf(stderr, "Unknown switch '%s'\n\n", arg);
+                return -1;
+            } else {
+                arg++;
+                while(*arg) {
+                    switch(*arg) {
+                    case 't': print_type = true; break;
+                    case 'v': verbose = true; break;
+                    case 'h':
+                    case '?':
+                        _print_usage();
+                        return 0;
+                    default:
+                        fprintf(stderr, "Unknown switch '%c'\n\n", *arg);
+                        return -1;
+                    }
+                    arg++;
+                }
+            }
+        } else {
+            if (fname) {
+                fprintf(stderr, "More than one input file unsupported.\n");
+                return -1;
+            } else {
+                fname = arg;
+            }
+        }
+    }
+
+    if (fname == NULL) {
+        fprintf(stderr, "No input file specified.\n");
         return -1;
     }
 
-    const char *fname = argv[1];
     struct MString *buffer = ReadFile(fname);
     if (!buffer) { return -1; }
 
@@ -138,13 +189,17 @@ int main(int argc, const char *argv[])
         return 1;
     }
 
-    struct MString *typeexp = FormatTypeExpression(type);
-    printf("%s\n", MStringData(typeexp));
-    MStringFree(&typeexp);
+    if (print_type) {
+        struct MString *typeexp = FormatTypeExpression(type);
+        printf("%s\n", MStringData(typeexp));
+        MStringFree(&typeexp);
+    }
 
-    fprintf(stderr, "Arena: %lu bytes used\n", ArenaAllocated(arena));
-    fprintf(stderr, "Size of expression is %lu bytes\n", sizeof(struct Expression));
-    fprintf(stderr, "Size of type exp is %lu bytes\n", sizeof(struct TypeExp));
+    if (verbose) {
+        fprintf(stderr, "Arena: %lu bytes used\n", ArenaAllocated(arena));
+        fprintf(stderr, "Size of expression is %lu bytes\n", sizeof(struct Expression));
+        fprintf(stderr, "Size of type exp is %lu bytes\n", sizeof(struct TypeExp));
+    }
 
     FreeArena(&arena);
 

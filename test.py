@@ -46,9 +46,13 @@ def run_test(path):
             stdout=None,
         )
 
+    args = ['./millie', path]
+    if 'ExpectedType' in spec:
+        args.append('--print-type')
+
     start = perf_counter()
     cp = run(
-        ['./millie', path],
+        args,
         stdout=PIPE,
         stderr=PIPE,
         encoding=locale.getpreferredencoding()
