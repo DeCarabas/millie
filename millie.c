@@ -11,6 +11,7 @@
 #include "ast.c"
 #include "parser.c"
 #include "typecheck.c"
+#include "compiler.c"
 
 /*
  * Driver
@@ -183,7 +184,7 @@ int main(int argc, const char *argv[])
         return 1;
     }
 
-    struct TypeExp *type = GetExpressionType(arena, tokens, expression, &errors);
+    struct TypeExp *type = GetExpressionType(arena, expression, tokens, &errors);
     if (errors) {
         PrintErrors(fname, tokens, errors);
         return 1;
@@ -193,6 +194,13 @@ int main(int argc, const char *argv[])
         struct MString *typeexp = FormatTypeExpression(type);
         printf("%s\n", MStringData(typeexp));
         MStringFree(&typeexp);
+    } else {
+        struct CompiledExpression compiled_expression;
+        CompileExpression(expression, tokens, &errors, &compiled_expression);
+        if (errors) {
+            PrintErrors(fname, tokens, errors);
+            return 1;
+        }
     }
 
     if (verbose) {

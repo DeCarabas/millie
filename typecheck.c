@@ -825,8 +825,8 @@ static struct TypeExp *_Analyze(struct CheckContext *context,
 
 struct TypeExp *GetExpressionType(
     struct Arena *arena,
-    struct MillieTokens *tokens,
     struct Expression *node,
+    struct MillieTokens *tokens,
     struct Errors **errors)
 {
     struct CheckContext context;

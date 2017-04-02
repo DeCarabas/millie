@@ -173,14 +173,8 @@ typedef enum {
     EXP_UNARY,
 } ExpressionType;
 
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpadded"
-
 struct Expression {
     ExpressionType type;
-    uint32_t start_token;
-    uint32_t end_token;
     union
     {
         struct
@@ -225,9 +219,9 @@ struct Expression {
             struct Expression *unary_arg;
         };
     };
+    uint32_t start_token;
+    uint32_t end_token;
 };
-
-#pragma GCC diagnostic pop
 
 struct Expression *MakeSyntaxError(struct Arena *arena, uint32_t position);
 struct Expression *MakeLambda(struct Arena *arena, uint32_t start_token,
@@ -266,6 +260,8 @@ struct Expression *ParseExpression(struct Arena *arena,
                                    struct SymbolTable *symbol_table,
                                    struct Errors **errors);
 
+
+
 /*
  * Typing
  */
@@ -298,8 +294,8 @@ struct TypeExp {
 struct MString *FormatTypeExpression(struct TypeExp *type);
 struct TypeExp *GetExpressionType(
     struct Arena *arena,
-    struct MillieTokens *tokens,
     struct Expression *node,
+    struct MillieTokens *tokens,
     struct Errors **errors);
 
 

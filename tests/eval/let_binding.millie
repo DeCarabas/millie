@@ -1,0 +1,7 @@
+# Compiler test for a simple let.
+#
+# Enabled: False
+let
+  x = 5
+in
+  x
