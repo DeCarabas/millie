@@ -1,0 +1,97 @@
+# A little example with monads (really?)
+#
+# This also just has all kinds of hacking on syntax and other things, it is
+# unsuitable for a real test but it's nice to check it in somewhere and we
+# can look at it.
+#
+# Enabled: False
+# ExpectFailure: True
+# ExpectedError: either the argument or return type is incompatible
+
+# What we want is a nice syntax for a threaded monad function, where we have
+# a function 'a -> ('a -> 'b) -> 'b (which I think is the monadic combinator,
+# although we can maybe be looser?) and then we get a series of let bindings.
+
+type 'a 'b option = Left 'a
+                  | Right 'b
+                  ;
+
+# Assume:
+#    foo :: Error Int option
+#    bar :: Error Bool option
+#    goo :: Error (Int list) option
+
+let
+    combine x y = match x with
+      | Left value: y value
+      | Right value: Right value
+in
+    combine (foo) fn x =>
+      combine (bar) fn y =>
+        combine (goo) fn z =>
+          qux x y z
+
+# begin/in syntax is for monadic combinator, makes sequences look better.
+# shorthand for the above.
+the_same = let
+  combine x y = match x with
+    | Left value: y value
+    | Right value: value
+  in
+    begin combine of
+      x = foo;
+      y = bar;
+      z = goo;
+    in
+      quz x y z
+
+
+# Generics could be ML style:
+#
+#   'a list
+#   'a io
+#   'a option
+#
+# Or C++ style?
+#
+#   list<'a>
+#   io<'a>
+#   option<'a, 'b>
+#
+#   list<int>
+#   option<int, bool>
+#   io<void>
+#
+# do :: 'a io -> ('a -> 'b io) -> 'b io
+# io:readln :: String io
+# io:print :: String -> () io
+#
+begin do of
+  x = io:readln;
+in
+  io:print x;
+
+    # This is the full syntax:
+    #
+    # let
+    #     x = foo  # foo :: 'a 'b option
+    # in let
+    #     y = combine x (fn _ => bar)
+    # in let
+    #     z = combine y (fn _ => goo)
+    # in
+    #     qux x y z
+    #
+    # But let's shorten it into begin <fn-expr> of
+    # <series-of-lets-with-semicolon> in <final-expr>
+    #
+    begin combine of
+        x := foo; # foo :
+        y := bar;
+        z := goo;
+    in
+        qux x y z
+
+    begin do of     # do :: 'a io -> ('a -> 'b io) -> 'b io
+        x := readln; # readln :: () -> string io;
+        y = print x
