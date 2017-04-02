@@ -113,20 +113,20 @@ static void _EnsureCodeCapacity(struct CompileContext *context, int more)
     }
 }
 
-static void _WriteInstructionU8(struct CompileContext *context, uint8_t value)
+static void _WriteCodeU8(struct CompileContext *context, uint8_t value)
 {
     _EnsureCodeCapacity(context, 1);
     *(context->code_write++) = value;
 }
 
-static void _WriteInstructionU16(struct CompileContext *context, uint16_t value)
+static void _WriteCodeU16(struct CompileContext *context, uint16_t value)
 {
     _EnsureCodeCapacity(context, 4);
     *(context->code_write++) = (value & 0x0000FF) >> 0;
     *(context->code_write++) = (value & 0x00FF00) >> 8;
 }
 
-static void _WriteInstructionU32(struct CompileContext *context, uint32_t value)
+static void _WriteCodeU32(struct CompileContext *context, uint32_t value)
 {
     _EnsureCodeCapacity(context, 4);
     *(context->code_write++) = (value & 0x000000FF) >> 0;
@@ -135,7 +135,7 @@ static void _WriteInstructionU32(struct CompileContext *context, uint32_t value)
     *(context->code_write++) = (value & 0xFF000000) >> 24;
 }
 
-static void _WriteInstructionU64(struct CompileContext *context, uint64_t value)
+static void _WriteCodeU64(struct CompileContext *context, uint64_t value)
 {
     _EnsureCodeCapacity(context, 8);
     *(context->code_write++) = (value & 0x00000000000000FF) >> 0;
@@ -179,7 +179,7 @@ static void _FinishCompile(struct CompileContext *context,
                            struct CompiledExpression *result)
 {
     result->result_register = result_register;
-    _WriteInstructionU8(context, OP_HALT);
+    _WriteCodeU8(context, OP_HALT);
 
     result->code = context->code;
     result->code_length = context->code_write - context->code;
@@ -199,21 +199,21 @@ static uint8_t _WriteLoadLiteral(struct CompileContext *context, uint64_t value)
 {
     uint8_t reg = _GetFreeIntRegister(context);
     if (value <= UINT8_MAX) {
-        _WriteInstructionU8(context, OP_LOADI_8);
-        _WriteInstructionU8(context, reg);
-        _WriteInstructionU8(context, value);
+        _WriteCodeU8(context, OP_LOADI_8);
+        _WriteCodeU8(context, reg);
+        _WriteCodeU8(context, value);
     } else if (value <= UINT16_MAX) {
-        _WriteInstructionU8(context, OP_LOADI_16);
-        _WriteInstructionU8(context, reg);
-        _WriteInstructionU16(context, value);
+        _WriteCodeU8(context, OP_LOADI_16);
+        _WriteCodeU8(context, reg);
+        _WriteCodeU16(context, value);
     } else if (value <= UINT32_MAX) {
-        _WriteInstructionU8(context, OP_LOADI_32);
-        _WriteInstructionU8(context, reg);
-        _WriteInstructionU32(context, value);
+        _WriteCodeU8(context, OP_LOADI_32);
+        _WriteCodeU8(context, reg);
+        _WriteCodeU32(context, value);
     } else {
-        _WriteInstructionU8(context, OP_LOADI_64);
-        _WriteInstructionU8(context, reg);
-        _WriteInstructionU64(context, value);
+        _WriteCodeU8(context, OP_LOADI_64);
+        _WriteCodeU8(context, reg);
+        _WriteCodeU64(context, value);
     }
     return reg;
 }
@@ -270,6 +270,30 @@ static uint8_t _CompileLambda(struct CompileContext *context,
     return _WriteLoadLiteral(context, func_id);
 }
 
+static uint8_t _CompileApply(struct CompileContext *context,
+                             struct Expression *expression)
+{
+    // TODO: OPT: Direct call opcode where func id is embedded in instruction
+    //            stream rather than register.
+    // TODO: Register allocation for reals; track references on registers and
+    //       free them when they aren't needed anymore.
+    uint8_t lambda_register = _CompileExpression(
+        context,
+        expression->apply_function
+    );
+    uint8_t arg_register = _CompileExpression(
+        context,
+        expression->apply_argument
+    );
+    uint8_t ret_register = _GetFreeIntRegister(context);
+
+    _WriteCodeU8(context, OP_CALL);
+    _WriteCodeU8(context, lambda_register);
+    _WriteCodeU8(context, arg_register);
+    _WriteCodeU8(context, ret_register);
+
+    return ret_register;
+}
 
 static uint8_t _CompileExpression(struct CompileContext *context,
                                   struct Expression *expression)
@@ -279,11 +303,11 @@ static uint8_t _CompileExpression(struct CompileContext *context,
     case EXP_LET: return _CompileLet(context, expression);
     case EXP_IDENTIFIER: return _CompileIdentifier(context, expression);
     case EXP_LAMBDA: return _CompileLambda(context, expression);
+    case EXP_APPLY: return _CompileApply(context, expression);
 
     case EXP_ERROR:
         break;
 
-    case EXP_APPLY:
     case EXP_LETREC:
     case EXP_TRUE:
     case EXP_FALSE:

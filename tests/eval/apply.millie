@@ -1,0 +1,7 @@
+# Compiler test for a simple apply
+#
+# Expected: 72
+let
+  identity = fn x => x
+in
+  identity 72

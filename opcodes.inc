@@ -7,3 +7,7 @@ OPCODE(LOADI_8)
 OPCODE(LOADI_16)
 OPCODE(LOADI_32)
 OPCODE(LOADI_64)
+
+// CALL calls a function
+// Arguments: reg_func_id(1), reg_arg(1), reg_ret(1)
+OPCODE(CALL)

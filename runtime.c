@@ -78,10 +78,11 @@ static uint64_t _ReadU64(const uint8_t **buffer_ptr) {
         (((uint64_t)buffer[7]) << 56);
 }
 
-uint64_t EvaluateCode(struct Module *module, int func_id) {
+uint64_t EvaluateCode(struct Module *module, int func_id, uint64_t arg0) {
     struct CompiledExpression *code = &(module->functions[func_id]);
     struct Frame frame;
     frame.registers = calloc(code->register_count, sizeof(uint64_t));
+    frame.registers[0] = arg0;
 
     const uint8_t *ip = code->code;
     bool halt = false;
@@ -89,6 +90,7 @@ uint64_t EvaluateCode(struct Module *module, int func_id) {
         TRACE_VM(ip, code, &frame);
         MILLIE_OPCODE op = *(ip++);
         switch(op) {
+
         case OP_LOADI_8:
             {
                 uint8_t reg = _ReadU8(&ip);
@@ -117,8 +119,22 @@ uint64_t EvaluateCode(struct Module *module, int func_id) {
                 frame.registers[reg] = val;
             }
             break;
+
         case OP_HALT:
             halt = true;
+            break;
+
+        case OP_CALL:
+            {
+                uint8_t func_reg = _ReadU8(&ip);
+                uint8_t arg_reg = _ReadU8(&ip);
+                uint8_t ret_reg = _ReadU8(&ip);
+
+                int function_id = (int)frame.registers[func_reg];
+                uint64_t arg_val = frame.registers[arg_reg];
+                uint64_t retval = EvaluateCode(module, function_id, arg_val);
+                frame.registers[ret_reg] = retval;
+            }
             break;
 
         default:
