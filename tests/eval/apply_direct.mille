@@ -1,0 +1,4 @@
+# Compiler test for a (very) simple apply
+#
+# Expected: 12
+(fn x => x) 12
