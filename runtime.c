@@ -6,7 +6,8 @@ struct Frame {
     uint64_t *registers;
 };
 
-//#define VM_TRACE
+// For watching the execution of the VM, obvs.
+// #define VM_TRACE
 
 #ifdef VM_TRACE
 
@@ -77,7 +78,8 @@ static uint64_t _ReadU64(const uint8_t **buffer_ptr) {
         (((uint64_t)buffer[7]) << 56);
 }
 
-uint64_t EvaluateCode(struct CompiledExpression *code) {
+uint64_t EvaluateCode(struct Module *module, int func_id) {
+    struct CompiledExpression *code = &(module->functions[func_id]);
     struct Frame frame;
     frame.registers = calloc(code->register_count, sizeof(uint64_t));
 

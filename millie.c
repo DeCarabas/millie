@@ -196,14 +196,15 @@ int main(int argc, const char *argv[])
         printf("%s\n", MStringData(typeexp));
         MStringFree(&typeexp);
     } else {
-        struct CompiledExpression compiled_expression;
-        CompileExpression(expression, tokens, &errors, &compiled_expression);
+        struct Module module;
+        ModuleInit(&module);
+        int func_id = CompileExpression(expression, tokens, &errors, &module);
         if (errors) {
             PrintErrors(fname, tokens, errors);
             return 1;
         }
 
-        uint64_t result = EvaluateCode(&compiled_expression);
+        uint64_t result = EvaluateCode(&module, func_id);
         printf("%llu\n", result);
     }
 

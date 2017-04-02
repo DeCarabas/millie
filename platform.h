@@ -314,9 +314,16 @@ struct CompiledExpression {
     uint8_t result_register;
 };
 
-void CompileExpression(struct Expression *expression,
-                       struct MillieTokens *tokens,
-                       struct Errors **errors,
-                       struct CompiledExpression *result);
+struct Module {
+    struct CompiledExpression *functions;
+    int function_count;
+    int function_capacity;
+};
+
+void ModuleInit(struct Module *module);
+int CompileExpression(struct Expression *expression,
+                      struct MillieTokens *tokens,
+                      struct Errors **errors,
+                      struct Module *result);
 
 #define PLATFORM_INCLUDED

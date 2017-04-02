@@ -7,6 +7,34 @@ struct CompileBinding {
     uint8_t reg;
 };
 
+void ModuleInit(struct Module *module) {
+    memset(module, 0, sizeof(*module));
+}
+
+static struct CompiledExpression *_AddFunction(
+    struct Module *global,
+    int *expression_id
+)
+{
+    if (global->function_count == global->function_capacity) {
+        int new_cap;
+        if (global->function_capacity == 0) {
+            new_cap = 10;
+        } else {
+            new_cap = global->function_capacity * 2;
+        }
+        global->functions = realloc(
+            global->functions,
+            sizeof(struct CompiledExpression) * new_cap
+        );
+        global->function_capacity = new_cap;
+    }
+
+    *expression_id = global->function_count;
+    global->function_count += 1;
+    return global->functions + global->function_count - 1;
+}
+
 struct CompileContext {
     uint8_t *code;
     uint8_t *code_write;
@@ -19,9 +47,39 @@ struct CompileContext {
     int binding_top;
     int binding_capacity;
 
-    struct Errors **errors;
+    struct CompileContext *parent_context;
+
+    struct Module *module;
     struct MillieTokens *tokens;
+    struct Errors **errors;
 };
+
+#define INITIAL_BINDING_CAPACITY (64)
+#define INITIAL_CODE_CAPACITY (64)
+
+static void _InitCompileContext(struct CompileContext *context,
+                                struct CompileContext *parent)
+{
+    memset(context, 0, sizeof(*context));
+    context->code = malloc(INITIAL_CODE_CAPACITY);
+    context->code_write = context->code;
+    context->code_capacity = INITIAL_CODE_CAPACITY;
+
+    context->integer_registers = 0;
+    context->max_registers = 0;
+
+    context->bindings = malloc(INITIAL_BINDING_CAPACITY);
+    context->binding_top = 0;
+    context->binding_capacity = INITIAL_BINDING_CAPACITY;
+
+    context->parent_context = parent;
+
+    if (parent != NULL) {
+        context->module = parent->module;
+        context->tokens = parent->tokens;
+        context->errors = parent->errors;
+    }
+}
 
 static void _ReportCompileError(struct CompileContext *context,
                                 struct Expression *expression,
@@ -116,31 +174,54 @@ static void _PopBinding(struct CompileContext *context)
     context->binding_top--;
 }
 
+static void _FinishCompile(struct CompileContext *context,
+                           uint8_t result_register,
+                           struct CompiledExpression *result)
+{
+    result->result_register = result_register;
+    _WriteInstructionU8(context, OP_HALT);
+
+    result->code = context->code;
+    result->code_length = context->code_write - context->code;
+
+    context->code = NULL;
+    result->register_count = context->max_registers;
+
+    free(context->bindings);
+    memset(context, 0, sizeof(struct CompileContext));
+}
+
+
 static uint8_t _CompileExpression(struct CompileContext *context,
                                    struct Expression *expression);
+
+static uint8_t _WriteLoadLiteral(struct CompileContext *context, uint64_t value)
+{
+    uint8_t reg = _GetFreeIntRegister(context);
+    if (value <= UINT8_MAX) {
+        _WriteInstructionU8(context, OP_LOADI_8);
+        _WriteInstructionU8(context, reg);
+        _WriteInstructionU8(context, value);
+    } else if (value <= UINT16_MAX) {
+        _WriteInstructionU8(context, OP_LOADI_16);
+        _WriteInstructionU8(context, reg);
+        _WriteInstructionU16(context, value);
+    } else if (value <= UINT32_MAX) {
+        _WriteInstructionU8(context, OP_LOADI_32);
+        _WriteInstructionU8(context, reg);
+        _WriteInstructionU32(context, value);
+    } else {
+        _WriteInstructionU8(context, OP_LOADI_64);
+        _WriteInstructionU8(context, reg);
+        _WriteInstructionU64(context, value);
+    }
+    return reg;
+}
 
 static uint8_t _CompileIntegerLiteral(struct CompileContext *context,
                                       struct Expression *expression)
 {
-    uint8_t reg = _GetFreeIntRegister(context);
-    if (expression->literal_value <= UINT8_MAX) {
-        _WriteInstructionU8(context, OP_LOADI_8);
-        _WriteInstructionU8(context, reg);
-        _WriteInstructionU8(context, expression->literal_value);
-    } else if (expression->literal_value <= UINT16_MAX) {
-        _WriteInstructionU8(context, OP_LOADI_16);
-        _WriteInstructionU8(context, reg);
-        _WriteInstructionU16(context, expression->literal_value);
-    } else if (expression->literal_value <= UINT32_MAX) {
-        _WriteInstructionU8(context, OP_LOADI_32);
-        _WriteInstructionU8(context, reg);
-        _WriteInstructionU32(context, expression->literal_value);
-    } else {
-        _WriteInstructionU8(context, OP_LOADI_64);
-        _WriteInstructionU8(context, reg);
-        _WriteInstructionU64(context, expression->literal_value);
-    }
-    return reg;
+    return _WriteLoadLiteral(context, expression->literal_value);
 }
 
 static uint8_t _CompileLet(struct CompileContext *context,
@@ -166,6 +247,29 @@ static uint8_t _CompileIdentifier(struct CompileContext *context,
     return 0;
 }
 
+static uint8_t _CompileLambda(struct CompileContext *context,
+                              struct Expression *expression)
+{
+    // Compile the lambda.
+    int func_id;
+    struct CompiledExpression *result = _AddFunction(context->module, &func_id);
+    {
+        struct CompileContext child_context;
+        _InitCompileContext(&child_context, context);
+
+        uint8_t arg_register = _GetFreeIntRegister(&child_context);
+        _PushBinding(&child_context, expression->lambda_id, arg_register);
+        uint8_t ret_register = _CompileExpression(
+            &child_context,
+            expression->lambda_body
+        );
+        _PopBinding(&child_context);
+        _FinishCompile(&child_context, ret_register, result);
+    }
+
+    return _WriteLoadLiteral(context, func_id);
+}
+
 
 static uint8_t _CompileExpression(struct CompileContext *context,
                                   struct Expression *expression)
@@ -174,8 +278,11 @@ static uint8_t _CompileExpression(struct CompileContext *context,
     case EXP_INTEGER_CONSTANT: return _CompileIntegerLiteral(context, expression);
     case EXP_LET: return _CompileLet(context, expression);
     case EXP_IDENTIFIER: return _CompileIdentifier(context, expression);
-    case EXP_ERROR: break;
-    case EXP_LAMBDA:
+    case EXP_LAMBDA: return _CompileLambda(context, expression);
+
+    case EXP_ERROR:
+        break;
+
     case EXP_APPLY:
     case EXP_LETREC:
     case EXP_TRUE:
@@ -194,33 +301,24 @@ static uint8_t _CompileExpression(struct CompileContext *context,
     return 0;
 }
 
-#define INITIAL_BINDING_CAPACITY (64)
-#define INITIAL_CODE_CAPACITY (64)
-
-void CompileExpression(struct Expression *expression,
-                       struct MillieTokens *tokens,
-                       struct Errors **errors,
-                       struct CompiledExpression *result)
+int CompileExpression(struct Expression *expression,
+                      struct MillieTokens *tokens,
+                      struct Errors **errors,
+                      struct Module *module)
 {
+
+
     struct CompileContext context;
-    context.code = malloc(INITIAL_CODE_CAPACITY);
-    context.code_write = context.code;
-    context.code_capacity = INITIAL_CODE_CAPACITY;
 
-    context.integer_registers = 0;
-    context.max_registers = 0;
+    int func_id;
+    struct CompiledExpression *result = _AddFunction(module, &func_id);
 
-    context.bindings = malloc(INITIAL_BINDING_CAPACITY);
-    context.binding_top = 0;
-    context.binding_capacity = INITIAL_BINDING_CAPACITY;
-
+    _InitCompileContext(&context, NULL);
+    context.module = module;
     context.errors = errors;
     context.tokens = tokens;
 
-    result->result_register = _CompileExpression(&context, expression);
-    _WriteInstructionU8(&context, OP_HALT);
-
-    result->code = context.code;
-    result->code_length = context.code_write - context.code;
-    result->register_count = context.max_registers;
+    uint8_t result_register = _CompileExpression(&context, expression);
+    _FinishCompile(&context, result_register, result);
+    return func_id;
 }
