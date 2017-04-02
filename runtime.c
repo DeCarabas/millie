@@ -6,6 +6,10 @@ struct Frame {
     uint64_t *registers;
 };
 
+//#define VM_TRACE
+
+#ifdef VM_TRACE
+
 static const char *_op_names[] = {
 #define Q(x) #x
 #define OPCODE(name)  Q(name) ,
@@ -13,6 +17,27 @@ static const char *_op_names[] = {
 #undef OPCODE
 #undef Q
 };
+
+static void _TraceOp(const uint8_t *code,
+                     struct CompiledExpression *def,
+                     struct Frame *frame)
+{
+    printf("%p %s\n", code, _op_names[*code]);
+    for(size_t i = 0; i < def->register_count; i++) {
+        printf("  Frame: %p\n", frame);
+        printf("    r%zu: 0x%llx\n", i, frame->registers[i]);
+    }
+}
+
+#define TRACE_VM(ip, def, frame) _TraceOp(ip, def, frame)
+
+#else
+
+#define TRACE_VM(ip, def, frame)
+
+#endif
+
+
 
 static uint8_t _ReadU8(const uint8_t **buffer_ptr) {
     const uint8_t *buffer = *buffer_ptr;
@@ -59,8 +84,8 @@ uint64_t EvaluateCode(struct CompiledExpression *code) {
     const uint8_t *ip = code->code;
     bool halt = false;
     while(!halt) {
+        TRACE_VM(ip, code, &frame);
         MILLIE_OPCODE op = *(ip++);
-        // printf(" %p %s\n", ip - 1, _op_names[op]);
         switch(op) {
         case OP_LOADI_8:
             {
