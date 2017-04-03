@@ -58,11 +58,17 @@ static void _TraceOp(const uint8_t *code,
             switch(info->args[i]) {
             case OPARG_REG: fprintf(stderr, " r%d",     _ReadU8(&code)); break;
             case OPARG_DREG: fprintf(stderr, " => r%d", _ReadU8(&code)); break;
-            case OPARG_OFF: fprintf(stderr, " %d",      _ReadU16(&code)); break;
             case OPARG_U8:  fprintf(stderr, " %02x",    _ReadU8(&code)); break;
             case OPARG_U16: fprintf(stderr, " %04x",    _ReadU16(&code)); break;
             case OPARG_U32: fprintf(stderr, " %08x",    _ReadU32(&code)); break;
             case OPARG_U64: fprintf(stderr, " %016llx", _ReadU64(&code)); break;
+            case OPARG_OFF:
+                {
+                    int16_t offset = (int16_t)_ReadU16(&code);
+                    ptrdiff_t target_offset = (code + offset) - def->code;
+                    fprintf(stderr, " %d (%05td)", offset, target_offset);
+                }
+                break;
             default: break;
             }
         }
