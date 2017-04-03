@@ -137,6 +137,61 @@ uint64_t EvaluateCode(struct Module *module, int func_id, uint64_t arg0) {
             }
             break;
 
+        case OP_ADD:
+            {
+                uint8_t left_reg = _ReadU8(&ip);
+                uint8_t right_reg = _ReadU8(&ip);
+                uint8_t ret_reg = _ReadU8(&ip);
+
+                frame.registers[ret_reg] =
+                    frame.registers[left_reg] + frame.registers[right_reg];
+            }
+            break;
+
+        case OP_SUB:
+            {
+                uint8_t left_reg = _ReadU8(&ip);
+                uint8_t right_reg = _ReadU8(&ip);
+                uint8_t ret_reg = _ReadU8(&ip);
+
+                frame.registers[ret_reg] =
+                    frame.registers[left_reg] - frame.registers[right_reg];
+            }
+            break;
+
+        case OP_MUL:
+            {
+                uint8_t left_reg = _ReadU8(&ip);
+                uint8_t right_reg = _ReadU8(&ip);
+                uint8_t ret_reg = _ReadU8(&ip);
+
+                frame.registers[ret_reg] =
+                    frame.registers[left_reg] * frame.registers[right_reg];
+            }
+            break;
+
+        case OP_NEG:
+            {
+                uint8_t arg_reg = _ReadU8(&ip);
+                uint8_t ret_reg = _ReadU8(&ip);
+
+                frame.registers[ret_reg] = -frame.registers[arg_reg];
+            }
+            break;
+
+        case OP_EQ:
+            {
+                uint8_t left_reg = _ReadU8(&ip);
+                uint8_t right_reg = _ReadU8(&ip);
+                uint8_t ret_reg = _ReadU8(&ip);
+
+                if (frame.registers[left_reg] == frame.registers[right_reg]) {
+                    frame.registers[ret_reg] = 1;
+                } else {
+                    frame.registers[ret_reg] = 0;
+                }
+            }
+            break;
         default:
             fprintf(stderr, "ERROR: UNKNOWN INSTRUCTION: %d\n", op);
             halt = true;

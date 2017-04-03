@@ -155,6 +155,12 @@ static uint8_t _GetFreeIntRegister(struct CompileContext *context)
     return context->integer_registers - 1;
 }
 
+static void _FreeRegister(struct CompileContext *context, uint8_t reg)
+{
+    (void)(context);
+    (void)(reg);
+}
+
 static void _PushBinding(struct CompileContext *context,
                          Symbol symbol,
                          uint8_t reg)
@@ -295,6 +301,69 @@ static uint8_t _CompileApply(struct CompileContext *context,
     return ret_register;
 }
 
+static uint8_t _CompileBinary(struct CompileContext *context,
+                              struct Expression *expression)
+{
+    // opcodes we use are guaranteed to read their input before writing their
+    // output, so we can free the input registers before allocating the output
+    // register to save space.
+    uint8_t left_register = _CompileExpression(
+        context,
+        expression->binary_left
+    );
+    uint8_t right_register = _CompileExpression(
+        context,
+        expression->binary_right
+    );
+    _FreeRegister(context, left_register);
+    _FreeRegister(context, right_register);
+
+    uint8_t out_register = _GetFreeIntRegister(context);
+
+    switch(expression->binary_operator) {
+    case TOK_PLUS: _WriteCodeU8(context, OP_ADD); break;
+    case TOK_MINUS: _WriteCodeU8(context, OP_SUB); break;
+    case TOK_EQUALS: _WriteCodeU8(context, OP_EQ); break;
+    case TOK_STAR: _WriteCodeU8(context, OP_MUL); break;
+    default:
+        _ReportCompileError(context, expression, "Unsupported binary operator");
+        break;
+    }
+
+    _WriteCodeU8(context, left_register);
+    _WriteCodeU8(context, right_register);
+    _WriteCodeU8(context, out_register);
+
+    return out_register;
+}
+
+static uint8_t _CompileUnary(struct CompileContext *context,
+                             struct Expression *expression)
+{
+    // opcodes we use are guaranteed to read their input before writing their
+    // output, so we can free the input registers before allocating the output
+    // register to save space.
+    uint8_t arg_register = _CompileExpression(
+        context,
+        expression->unary_arg
+    );
+    _FreeRegister(context, arg_register);
+
+    uint8_t out_register = _GetFreeIntRegister(context);
+
+    switch(expression->binary_operator) {
+    case TOK_MINUS: _WriteCodeU8(context, OP_NEG); break;
+    default:
+        _ReportCompileError(context, expression, "Unsupported unary operator");
+        break;
+    }
+
+    _WriteCodeU8(context, arg_register);
+    _WriteCodeU8(context, out_register);
+
+    return out_register;
+}
+
 static uint8_t _CompileExpression(struct CompileContext *context,
                                   struct Expression *expression)
 {
@@ -304,6 +373,8 @@ static uint8_t _CompileExpression(struct CompileContext *context,
     case EXP_IDENTIFIER: return _CompileIdentifier(context, expression);
     case EXP_LAMBDA: return _CompileLambda(context, expression);
     case EXP_APPLY: return _CompileApply(context, expression);
+    case EXP_BINARY: return _CompileBinary(context, expression);
+    case EXP_UNARY: return _CompileUnary(context, expression);
 
     case EXP_ERROR:
         break;
@@ -312,8 +383,6 @@ static uint8_t _CompileExpression(struct CompileContext *context,
     case EXP_TRUE:
     case EXP_FALSE:
     case EXP_IF:
-    case EXP_BINARY:
-    case EXP_UNARY:
     case EXP_INVALID:
         _ReportCompileError(
             context,

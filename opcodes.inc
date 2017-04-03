@@ -11,3 +11,12 @@ OPCODE(LOADI_64)
 // CALL calls a function
 // Arguments: reg_func_id(1), reg_arg(1), reg_ret(1)
 OPCODE(CALL)
+
+// Math
+OPCODE(ADD)
+OPCODE(SUB)
+OPCODE(MUL)
+OPCODE(NEG)
+
+// What
+OPCODE(EQ)
