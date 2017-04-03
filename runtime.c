@@ -25,6 +25,7 @@ typedef enum OP_ARG_TYPE {
     OPARG_U16,
     OPARG_U32,
     OPARG_U64,
+    OPARG_IDX,
 } OP_ARG_TYPE;
 
 static const struct OpInfo {
@@ -61,6 +62,7 @@ static const uint8_t *_TraceInstruction(const uint8_t *ip,
         case OPARG_U16: fprintf(stderr, " %04x",    _ReadU16(&ip)); break;
         case OPARG_U32: fprintf(stderr, " %08x",    _ReadU32(&ip)); break;
         case OPARG_U64: fprintf(stderr, " %016llx", _ReadU64(&ip)); break;
+        case OPARG_IDX: fprintf(stderr, "[%d]",  (int16_t)_ReadU16(&ip)); break;
         case OPARG_OFF:
             {
                 int16_t offset = (int16_t)_ReadU16(&ip);
@@ -79,11 +81,12 @@ static void _TraceOp(const uint8_t *code,
                      struct CompiledExpression *def,
                      struct Frame *frame)
 {
-    _TraceInstruction(code, def);
     fprintf(stderr, "  Frame: %p\n", frame);
     for(size_t i = 0; i < def->register_count; i++) {
         fprintf(stderr, "    r%zu: 0x%llx\n", i, frame->registers[i]);
     }
+    _TraceInstruction(code, def);
+    fprintf(stderr, "\n");
 }
 
 #define TRACE_VM(ip, def, frame) _TraceOp(ip, def, frame)
@@ -134,11 +137,22 @@ static uint64_t _ReadU64(const uint8_t **buffer_ptr) {
         (((uint64_t)buffer[7]) << 56);
 }
 
-uint64_t EvaluateCode(struct Module *module, int func_id, uint64_t arg0) {
+#define MAX_ALLOC_SIZE (512)
+static void *_AllocateArray(size_t element_size, int count)
+{
+    return malloc(element_size * count); // TODO: Garbage collection.
+}
+
+uint64_t EvaluateCode(struct Module *module,
+                      int func_id,
+                      uint64_t closure,
+                      uint64_t arg0)
+{
     struct CompiledExpression *code = &(module->functions[func_id]);
     struct Frame frame;
     frame.registers = calloc(code->register_count, sizeof(uint64_t));
-    frame.registers[0] = arg0;
+    frame.registers[0] = closure;
+    frame.registers[1] = arg0;
 
     const uint8_t *ip = code->code;
     bool halt = false;
@@ -176,7 +190,7 @@ uint64_t EvaluateCode(struct Module *module, int func_id, uint64_t arg0) {
             }
             break;
 
-        case OP_HALT:
+        case OP_RET:
             halt = true;
             break;
 
@@ -186,9 +200,16 @@ uint64_t EvaluateCode(struct Module *module, int func_id, uint64_t arg0) {
                 uint8_t arg_reg = _ReadU8(&ip);
                 uint8_t ret_reg = _ReadU8(&ip);
 
-                int function_id = (int)frame.registers[func_reg];
+                uint64_t closure = frame.registers[func_reg];
+                int function_id = (int)((uint64_t *)closure)[0];
+
                 uint64_t arg_val = frame.registers[arg_reg];
-                uint64_t retval = EvaluateCode(module, function_id, arg_val);
+                uint64_t retval = EvaluateCode(
+                    module,
+                    function_id,
+                    closure,
+                    arg_val
+                );
                 frame.registers[ret_reg] = retval;
             }
             break;
@@ -273,6 +294,45 @@ uint64_t EvaluateCode(struct Module *module, int func_id, uint64_t arg0) {
                 uint8_t dst_reg = _ReadU8(&ip);
 
                 frame.registers[dst_reg] = frame.registers[src_reg];
+            }
+            break;
+
+        case OP_ALLOCA_64:
+            {
+                uint64_t count = _ReadU64(&ip);
+                uint8_t dst_reg = _ReadU8(&ip);
+
+                if (count > MAX_ALLOC_SIZE) {
+                    fprintf(stderr, "ERROR: Too much allocation\n");
+                    halt = true;
+                    break;
+                }
+
+                uint64_t *dest = _AllocateArray(sizeof(uint64_t), count);
+                frame.registers[dst_reg] = (uint64_t)dest;
+            }
+            break;
+
+        case OP_LOADA_64:
+            {
+                uint8_t src_reg = _ReadU8(&ip);
+                int16_t offset = (int16_t)_ReadU16(&ip);
+                uint8_t dst_reg = _ReadU8(&ip);
+
+                uint64_t *arr = (uint64_t *)(frame.registers[src_reg]);
+                uint64_t result = arr[offset];
+                frame.registers[dst_reg] = result;
+            }
+            break;
+
+        case OP_STOREA_64:
+            {
+                uint8_t src_reg = _ReadU8(&ip);
+                int16_t offset = (int16_t)_ReadU16(&ip);
+                uint8_t val_reg = _ReadU8(&ip);
+
+                uint64_t *arr = (uint64_t *)(frame.registers[src_reg]);
+                arr[offset] = frame.registers[val_reg];
             }
             break;
 

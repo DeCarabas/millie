@@ -311,6 +311,10 @@ struct CompiledExpression {
     uint8_t *code;
     size_t code_length;
     size_t register_count;
+
+    Symbol *closure;
+    size_t closure_length;
+
     uint8_t result_register;
 };
 

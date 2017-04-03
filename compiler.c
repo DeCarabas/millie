@@ -2,11 +2,6 @@
 #include "platform.h"
 #endif
 
-struct CompileBinding {
-    Symbol symbol;
-    uint8_t reg;
-};
-
 void ModuleInit(struct Module *module) {
     memset(module, 0, sizeof(*module));
 }
@@ -35,6 +30,11 @@ static struct CompiledExpression *_AddFunction(
     return global->functions + global->function_count - 1;
 }
 
+struct CompileBinding {
+    Symbol symbol;
+    uint8_t reg;
+};
+
 struct CompileContext {
     uint8_t *code;
     uint8_t *code_write;
@@ -46,6 +46,10 @@ struct CompileContext {
     struct CompileBinding *bindings;
     int binding_top;
     int binding_capacity;
+
+    Symbol *closure_symbols;
+    int closure_top;
+    int closure_capacity;
 
     struct CompileContext *parent_context;
 
@@ -71,6 +75,10 @@ static void _InitCompileContext(struct CompileContext *context,
     context->bindings = malloc(INITIAL_BINDING_CAPACITY);
     context->binding_top = 0;
     context->binding_capacity = INITIAL_BINDING_CAPACITY;
+
+    context->closure_symbols = malloc(INITIAL_BINDING_CAPACITY);
+    context->closure_top = 0;
+    context->closure_capacity = INITIAL_BINDING_CAPACITY;
 
     context->parent_context = parent;
 
@@ -194,12 +202,15 @@ static void _FinishCompile(struct CompileContext *context,
                            struct CompiledExpression *result)
 {
     result->result_register = result_register;
-    _WriteCodeU8(context, OP_HALT);
+    _WriteCodeU8(context, OP_RET);
 
     result->code = context->code;
     result->code_length = context->code_write - context->code;
-
     context->code = NULL;
+
+    result->closure = context->closure_symbols;
+    result->closure_length = context->closure_top;
+
     result->register_count = context->max_registers;
 
     free(context->bindings);
@@ -246,29 +257,80 @@ static uint8_t _CompileLet(struct CompileContext *context,
     return result;
 }
 
-static uint8_t _CompileIdentifier(struct CompileContext *context,
-                                     struct Expression *expression)
+static uint8_t _CompileIdentifierImpl(struct CompileContext *context, Symbol id)
 {
+    // Look to see if it's a local that's in a register.
     for(int i = context->binding_top; i >= 0; i--) {
-        if (context->bindings[i].symbol == expression->identifier_id) {
+        if (context->bindings[i].symbol == id) {
+            _RetainRegister(context, context->bindings[i].reg);
             return context->bindings[i].reg;
         }
     }
 
-    _ReportCompileError(context, expression, "Unbound identifier");
-    return 0;
+    // Must be in our closure.
+    //
+    // TODO: It would be great if we could save the result of this load and not
+    // do it all the time but I'm not entirely sure how...
+    //
+    // Closure is always in r0.
+    int closure_offset = -1;
+    for (int i = 0; i < context->closure_top; i++) {
+        if (context->closure_symbols[i] == id) {
+            closure_offset = i;
+            break;
+        }
+    }
+
+    if (closure_offset < 0) {
+        if (context->closure_capacity == context->closure_top) {
+            uint32_t new_capacity = context->closure_capacity * 2;
+            context->closure_symbols = realloc(
+                context->closure_symbols,
+                new_capacity * sizeof(Symbol)
+            );
+            context->closure_capacity = new_capacity;
+        }
+        closure_offset = context->closure_top;
+        context->closure_symbols[closure_offset] = id;
+        context->closure_top++;
+    }
+
+    uint8_t load_target = _GetFreeIntRegister(context);
+
+    // Load from the closure in r0. Note that closure_offset is +1 because
+    // we're skipping over the function pointer which is at r0+0.
+    _WriteCodeU8(context, OP_LOADA_64);
+    _WriteCodeU8(context, 0);
+    _WriteCodeU16(context, (int16_t)closure_offset + 1);
+    _WriteCodeU8(context, load_target);
+
+    return load_target;
+}
+
+
+static uint8_t _CompileIdentifier(struct CompileContext *context,
+                                     struct Expression *expression)
+{
+    return _CompileIdentifierImpl(context, expression->identifier_id);
 }
 
 static uint8_t _CompileLambda(struct CompileContext *context,
                               struct Expression *expression)
 {
     // Compile the lambda.
+    // TODO: Optimize the case where no closure is required:
+    //   - Generate no allocation
+    //   - Don't use r0?
     int func_id;
     struct CompiledExpression *result = _AddFunction(context->module, &func_id);
     {
         struct CompileContext child_context;
         _InitCompileContext(&child_context, context);
 
+        // Reserve register 0 for the closure.
+        child_context.integer_registers++;
+
+        // And the next one for the arg...
         uint8_t arg_register = _GetFreeIntRegister(&child_context);
         _PushBinding(&child_context, expression->lambda_id, arg_register);
         uint8_t ret_register = _CompileExpression(
@@ -279,7 +341,35 @@ static uint8_t _CompileLambda(struct CompileContext *context,
         _FinishCompile(&child_context, ret_register, result);
     }
 
-    return _WriteLoadLiteral(context, func_id);
+    // Now generate the closure object.
+    uint8_t target_register = _GetFreeIntRegister(context);
+    _WriteCodeU8(context, OP_ALLOCA_64);
+    _WriteCodeU64(context, result->closure_length + 1);
+    _WriteCodeU8(context, target_register);
+
+    // And write out our stuffs. First thing in a closure is
+    // the pointer to code.
+    uint8_t id_reg = _WriteLoadLiteral(context, func_id);
+
+    _WriteCodeU8(context, OP_STOREA_64);
+    _WriteCodeU8(context, target_register);
+    _WriteCodeU16(context, 0);
+    _WriteCodeU8(context, id_reg);
+
+    _FreeRegister(context, id_reg);
+
+    for(size_t i = 0; i < result->closure_length; i++) {
+        id_reg = _CompileIdentifierImpl(context, result->closure[i]);
+
+        _WriteCodeU8(context, OP_STOREA_64);
+        _WriteCodeU8(context, target_register);
+        _WriteCodeU16(context, i + 1);
+        _WriteCodeU8(context, id_reg);
+
+        _FreeRegister(context, id_reg);
+    }
+
+    return target_register;
 }
 
 static uint8_t _CompileApply(struct CompileContext *context,

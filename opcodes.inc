@@ -11,7 +11,7 @@
 //   U8, U16, U32, U64: Unsigned constant values.
 //   REG:               A register to read from.
 //   DREG:              A destination register.
-//   OFFS:              A 16-bit signed offset.
+//   OFF:               A 16-bit signed offset.
 //
 // Note that all destination registers *may* re-use source registers; the
 // machine is guaranteed to read all source registers before writing to the
@@ -19,14 +19,26 @@
 //
 // == The instructions ==
 //
-// HALT returns from the current frame.
-OPCODE(HALT, 0, 0, 0)
+// RET returns from the current frame.
+OPCODE(RET, 0, 0, 0)
 
 // LOADI loads an immediate out of the instruction stream into a register.
 OPCODE(LOADI_8,  U8,  DREG, 0)
 OPCODE(LOADI_16, U16, DREG, 0)
 OPCODE(LOADI_32, U32, DREG, 0)
 OPCODE(LOADI_64, U64, DREG, 0)
+
+// LOADA dereferences an offset address from a register, as if it were an
+// array of that type. For example, LOADA_64(0, 7, 6) is like the C expression
+// r6 = ((uint64_t *)r0)[7].
+OPCODE(LOADA_64, REG, IDX, DREG)
+
+// STOREA is the opposite of LOADA-- it write to memory instead. For example,
+// STOREA_64(0, 7, 6) is like the C expression ((uint64_t *)r0)[7] = r6
+OPCODE(STOREA_64, REG, IDX, REG)
+
+// ALLOCA allocates an array of the particular size.
+OPCODE(ALLOCA_64, U64, DREG, 0)
 
 // CALL calls a function, indicated by the function pointer in the first
 // register. The single argument value is in the second register, and the

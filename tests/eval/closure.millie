@@ -1,0 +1,7 @@
+# Close over some variables and make it work.
+#
+# Expected: 3
+let
+  add = fn x => fn y => x + y
+in
+  add 1 2

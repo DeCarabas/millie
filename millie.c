@@ -204,7 +204,7 @@ int main(int argc, const char *argv[])
             return 1;
         }
 
-        uint64_t result = EvaluateCode(&module, func_id, 0);
+        uint64_t result = EvaluateCode(&module, func_id, 0, 0);
         printf("%llu\n", result);
     }
 
