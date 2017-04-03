@@ -302,7 +302,7 @@ struct TypeExp *GetExpressionType(
  * Compiler/VM
  */
 typedef enum MILLIE_OPCODE {
-#define OPCODE(name)  OP_##name ,
+#define OPCODE(name, _x, _y, _z)  OP_##name ,
 #include "opcodes.inc"
 #undef OPCODE
 } MILLIE_OPCODE;

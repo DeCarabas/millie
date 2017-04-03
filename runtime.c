@@ -6,14 +6,39 @@ struct Frame {
     uint64_t *registers;
 };
 
+static uint8_t _ReadU8(const uint8_t **buffer_ptr);
+static uint16_t _ReadU16(const uint8_t **buffer_ptr);
+static uint32_t _ReadU32(const uint8_t **buffer_ptr);
+static uint64_t _ReadU64(const uint8_t **buffer_ptr);
+
 // For watching the execution of the VM, obvs.
 // #define VM_TRACE
 
 #ifdef VM_TRACE
 
-static const char *_op_names[] = {
+typedef enum OP_ARG_TYPE {
+    OPARG_0 = 0,
+    OPARG_REG,
+    OPARG_OFF,
+    OPARG_U8,
+    OPARG_U16,
+    OPARG_U32,
+    OPARG_U64,
+} OP_ARG_TYPE;
+
+static const struct OpInfo {
+    const char *name;
+    OP_ARG_TYPE args[3];
+} _op_info[] = {
 #define Q(x) #x
-#define OPCODE(name)  Q(name) ,
+#define OPCODE(name, arg0, arg1, arg2) {                        \
+        Q(name) ,                                               \
+        {                                                       \
+            OPARG_##arg0 ,                                      \
+            OPARG_##arg1 ,                                      \
+            OPARG_##arg2 ,                                      \
+        }                                                       \
+    },
 #include "opcodes.inc"
 #undef OPCODE
 #undef Q
@@ -23,10 +48,27 @@ static void _TraceOp(const uint8_t *code,
                      struct CompiledExpression *def,
                      struct Frame *frame)
 {
-    printf("%p %s\n", code, _op_names[*code]);
+    const struct OpInfo *info = &(_op_info[*code]);
+    ptrdiff_t offset = code - def->code;
+    {
+        fprintf(stderr, "%05td %s", offset, info->name);
+        code++;
+        for(int i = 0; i < 3; i++) {
+            switch(info->args[i]) {
+            case OPARG_REG: fprintf(stderr, " r%d",     _ReadU8(&code)); break;
+            case OPARG_OFF: fprintf(stderr, " %d",      _ReadU16(&code)); break;
+            case OPARG_U8:  fprintf(stderr, " %02x",    _ReadU8(&code)); break;
+            case OPARG_U16: fprintf(stderr, " %04x",    _ReadU16(&code)); break;
+            case OPARG_U32: fprintf(stderr, " %08x",    _ReadU32(&code)); break;
+            case OPARG_U64: fprintf(stderr, " %016llx", _ReadU64(&code)); break;
+            default: break;
+            }
+        }
+        fprintf(stderr, "\n");
+    }
+    fprintf(stderr, "  Frame: %p\n", frame);
     for(size_t i = 0; i < def->register_count; i++) {
-        printf("  Frame: %p\n", frame);
-        printf("    r%zu: 0x%llx\n", i, frame->registers[i]);
+        fprintf(stderr, "    r%zu: 0x%llx\n", i, frame->registers[i]);
     }
 }
 
@@ -192,6 +234,34 @@ uint64_t EvaluateCode(struct Module *module, int func_id, uint64_t arg0) {
                 }
             }
             break;
+
+        case OP_JZ:
+            {
+                uint8_t test_reg = _ReadU8(&ip);
+                int16_t offset = (int16_t)_ReadU16(&ip);
+
+                if (frame.registers[test_reg] == 0) {
+                    ip += offset;
+                }
+            }
+            break;
+
+        case OP_JMP:
+            {
+                int16_t offset = (int16_t)_ReadU16(&ip);
+                ip += offset;
+            }
+            break;
+
+        case OP_MOV:
+            {
+                uint8_t src_reg = _ReadU8(&ip);
+                uint8_t dst_reg = _ReadU8(&ip);
+
+                frame.registers[dst_reg] = frame.registers[src_reg];
+            }
+            break;
+
         default:
             fprintf(stderr, "ERROR: UNKNOWN INSTRUCTION: %d\n", op);
             halt = true;

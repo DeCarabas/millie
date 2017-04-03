@@ -1,0 +1,4 @@
+# Simple if test.
+#
+# Expected: 10
+if true then 10 else 36

@@ -110,6 +110,7 @@ static void _EnsureCodeCapacity(struct CompileContext *context, int more)
         uint32_t new_capacity = context->code_capacity * 2;
         context->code = realloc(context->code, new_capacity);
         context->code_capacity = new_capacity;
+        context->code_write = context->code + code_len;
     }
 }
 
@@ -155,6 +156,12 @@ static uint8_t _GetFreeIntRegister(struct CompileContext *context)
     return context->integer_registers - 1;
 }
 
+static void _RetainRegister(struct CompileContext *context, uint8_t reg)
+{
+    (void)(context);
+    (void)(reg);
+}
+
 static void _FreeRegister(struct CompileContext *context, uint8_t reg)
 {
     (void)(context);
@@ -172,12 +179,14 @@ static void _PushBinding(struct CompileContext *context,
 
     context->bindings[context->binding_top].symbol = symbol;
     context->bindings[context->binding_top].reg = reg;
+    _RetainRegister(context, reg);
     context->binding_top++;
 }
 
 static void _PopBinding(struct CompileContext *context)
 {
     context->binding_top--;
+    _FreeRegister(context, context->bindings[context->binding_top].reg);
 }
 
 static void _FinishCompile(struct CompileContext *context,
@@ -364,6 +373,88 @@ static uint8_t _CompileUnary(struct CompileContext *context,
     return out_register;
 }
 
+static uint8_t _CompileIf(struct CompileContext *context,
+                          struct Expression *expression)
+{
+    // This is a little bit complicated, so follow carefully.
+    //
+    // First, compile the test part of the if.  This will leave a boolean in
+    // result_reg.
+    uint8_t result_reg = _CompileExpression(context, expression->if_test);
+
+    // Now we write in a JZ(<result_reg>, <false_branch>) which will jump to
+    // <false_branch> if the test is false...
+    _WriteCodeU8(context, OP_JZ);
+    _WriteCodeU8(context, result_reg);
+
+    // ...but we need to skip over the <false_branch> offset, which is a 16b
+    // signed code offset from the location *after* the address. (So 0 does
+    // nothing.)
+    const ptrdiff_t false_target_loc = context->code_write - context->code;
+    _EnsureCodeCapacity(context, 2);
+    context->code_write += 2;
+
+    // We don't need the comparison register anymore.
+    _FreeRegister(context, result_reg);
+
+    // Now compile the true branch, and remember where we left the value.
+    uint8_t true_reg = _CompileExpression(context, expression->if_then);
+
+    // Now we need to stick in a jump over the false branch, but we don't
+    // know where it's going yet, so do the same trick where we leave a hole...
+    _WriteCodeU8(context, OP_JMP);
+    const ptrdiff_t end_target_loc = context->code_write - context->code;
+    _EnsureCodeCapacity(context, 2);
+    context->code_write += 2;
+
+    // Ah, here's where the false branch is. Compute the offset from the start
+    // of the code block...
+    const ptrdiff_t false_loc = context->code_write - context->code;
+
+    // ...and now the offset from the OP_JZ location, above, and write it in.
+    int16_t false_offset = false_loc - false_target_loc - 2;
+    context->code_write = context->code + false_target_loc;
+    _WriteCodeU16(context, false_offset);
+    context->code_write = context->code + false_loc;
+
+    // Now compile the false branch.
+    uint8_t false_reg = _CompileExpression(context, expression->if_else);
+
+    // If false put the data somewhere different than true, then we need to make
+    // it so the output is in the same register. Issue a MOV and then we can
+    // free the false register.
+    if (false_reg != true_reg) {
+        _WriteCodeU8(context, OP_MOV);
+        _WriteCodeU8(context, false_reg);
+        _WriteCodeU8(context, true_reg);
+        _FreeRegister(context, false_reg);
+    }
+
+    // Now we're at the end of the block, so compute the offset from the start
+    // of the code block...
+    const ptrdiff_t end_loc = context->code_write - context->code;
+
+    // ...and now the offset from the OP_JMP location at the end of the <true>
+    // branch. Same semantics, same basic idea.
+    int16_t end_offset = end_loc - end_target_loc - 2;
+    context->code_write = context->code + end_target_loc;
+    _WriteCodeU16(context, end_offset);
+    context->code_write = context->code + end_loc;
+
+    // ...and the result got left in the <true> register.
+    return true_reg;
+}
+
+static uint8_t _CompileTrue(struct CompileContext *context)
+{
+    return _WriteLoadLiteral(context, 1);
+}
+
+static uint8_t _CompileFalse(struct CompileContext *context)
+{
+    return _WriteLoadLiteral(context, 0);
+}
+
 static uint8_t _CompileExpression(struct CompileContext *context,
                                   struct Expression *expression)
 {
@@ -375,14 +466,14 @@ static uint8_t _CompileExpression(struct CompileContext *context,
     case EXP_APPLY: return _CompileApply(context, expression);
     case EXP_BINARY: return _CompileBinary(context, expression);
     case EXP_UNARY: return _CompileUnary(context, expression);
+    case EXP_IF: return _CompileIf(context, expression);
+    case EXP_TRUE: return _CompileTrue(context);
+    case EXP_FALSE: return _CompileFalse(context);
 
     case EXP_ERROR:
         break;
 
     case EXP_LETREC:
-    case EXP_TRUE:
-    case EXP_FALSE:
-    case EXP_IF:
     case EXP_INVALID:
         _ReportCompileError(
             context,
