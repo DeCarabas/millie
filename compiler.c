@@ -215,21 +215,18 @@ static uint8_t _WriteLoadLiteral(struct CompileContext *context, uint64_t value)
     uint8_t reg = _GetFreeIntRegister(context);
     if (value <= UINT8_MAX) {
         _WriteCodeU8(context, OP_LOADI_8);
-        _WriteCodeU8(context, reg);
         _WriteCodeU8(context, value);
     } else if (value <= UINT16_MAX) {
         _WriteCodeU8(context, OP_LOADI_16);
-        _WriteCodeU8(context, reg);
         _WriteCodeU16(context, value);
     } else if (value <= UINT32_MAX) {
         _WriteCodeU8(context, OP_LOADI_32);
-        _WriteCodeU8(context, reg);
         _WriteCodeU32(context, value);
     } else {
         _WriteCodeU8(context, OP_LOADI_64);
-        _WriteCodeU8(context, reg);
         _WriteCodeU64(context, value);
     }
+    _WriteCodeU8(context, reg);
     return reg;
 }
 

@@ -19,6 +19,7 @@ static uint64_t _ReadU64(const uint8_t **buffer_ptr);
 typedef enum OP_ARG_TYPE {
     OPARG_0 = 0,
     OPARG_REG,
+    OPARG_DREG,
     OPARG_OFF,
     OPARG_U8,
     OPARG_U16,
@@ -56,6 +57,7 @@ static void _TraceOp(const uint8_t *code,
         for(int i = 0; i < 3; i++) {
             switch(info->args[i]) {
             case OPARG_REG: fprintf(stderr, " r%d",     _ReadU8(&code)); break;
+            case OPARG_DREG: fprintf(stderr, " => r%d", _ReadU8(&code)); break;
             case OPARG_OFF: fprintf(stderr, " %d",      _ReadU16(&code)); break;
             case OPARG_U8:  fprintf(stderr, " %02x",    _ReadU8(&code)); break;
             case OPARG_U16: fprintf(stderr, " %04x",    _ReadU16(&code)); break;
@@ -135,29 +137,29 @@ uint64_t EvaluateCode(struct Module *module, int func_id, uint64_t arg0) {
 
         case OP_LOADI_8:
             {
-                uint8_t reg = _ReadU8(&ip);
                 uint8_t val = _ReadU8(&ip);
+                uint8_t reg = _ReadU8(&ip);
                 frame.registers[reg] = val;
             }
             break;
         case OP_LOADI_16:
             {
-                uint8_t reg = _ReadU8(&ip);
                 uint16_t val = _ReadU16(&ip);
+                uint8_t reg = _ReadU8(&ip);
                 frame.registers[reg] = val;
             }
             break;
         case OP_LOADI_32:
             {
-                uint8_t reg = _ReadU8(&ip);
                 uint32_t val = _ReadU32(&ip);
+                uint8_t reg = _ReadU8(&ip);
                 frame.registers[reg] = val;
             }
             break;
         case OP_LOADI_64:
             {
-                uint8_t reg = _ReadU8(&ip);
                 uint64_t val = _ReadU64(&ip);
+                uint8_t reg = _ReadU8(&ip);
                 frame.registers[reg] = val;
             }
             break;
