@@ -51,7 +51,7 @@ Some of Millie's priorities are:
 
 To build Millie on OS X, run
 
-  ./build.sh
+    ./build.sh
 
 The current Millie implementation is built in C99 and so in theory
 requires only the standard library and a modern C compiler, but I've
@@ -59,7 +59,7 @@ only actually tested it on OS X.
 
 The test harness currently requires Python 3. To run the tests, run
 
-  ./test.py
+    ./test.py
 
 from the root of the project.
 
