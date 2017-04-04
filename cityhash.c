@@ -3,8 +3,21 @@
 #endif
 
 /*
- * Based on the city.cc from https://github.com/google/cityhash/
- * Ported to C99. 64b stuff removed.
+ * An implementation of 32-bit CityHash.
+ *
+ * I chose CityHash because it has good performance, good distribution, and a
+ * small implementation, suitable for building in the way I want to build it.
+ * CityHash is a little long in the tooth now (March 2017), as there are several
+ * newer, better, faster variants, but they all have significant build
+ * complexities and don't really solve any problem that I actually have.
+ *
+ * (Honestly, Murmur3a would probably be just as good, I haven't actually tested
+ * them them against each other.)
+ *
+ * This code was based on code found in Google's cityhash repository, which can
+ * be found at https://github.com/google/cityhash/.
+ *
+ * That code is copyright (c) 2011 Google, Inc.
  */
 
 static uint32_t UNALIGNED_LOAD32(const char *p) {
