@@ -17,7 +17,6 @@ Millie was started because of tweets:
   March 13, 2017
   </a>
 </blockquote>
-<script async src="//platform.twitter.com/widgets.js" charset="utf-8"></script>
 <blockquote class="twitter-tweet" data-lang="en">
   <p lang="en" dir="ltr">
   The Lua repo is 35 .c files (21 KLOC), 26 .h files (4 KLOC), one
@@ -29,7 +28,6 @@ Millie was started because of tweets:
     March 13, 2017
   </a>
 </blockquote>
-<script async src="//platform.twitter.com/widgets.js" charset="utf-8"></script>
 
 Within that framework, Millie aims to be *useful* and *practical*, and is
 intended to be a good language for doing software engineering both in
