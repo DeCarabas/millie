@@ -8,6 +8,18 @@ Millie was started because of tweets:
 
 <blockquote class="twitter-tweet" data-lang="en">
   <p lang="en" dir="ltr">
+  I wish there were a well-supported, simple, easy to build,
+  ML-descended static functional language. No shenanigans, like (e.g.)
+  Lua.
+  </p>
+  &mdash; Gary Bernhardt (@garybernhardt)
+  <a href="https://twitter.com/garybernhardt/status/841430367772930048">
+  March 13, 2017
+  </a>
+</blockquote>
+<script async src="//platform.twitter.com/widgets.js" charset="utf-8"></script>
+<blockquote class="twitter-tweet" data-lang="en">
+  <p lang="en" dir="ltr">
   The Lua repo is 35 .c files (21 KLOC), 26 .h files (4 KLOC), one
   makefile, and one &quot;bugs&quot; file. Nothing else; no
   directories. It&#39;s glorious.
