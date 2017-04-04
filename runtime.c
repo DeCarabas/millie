@@ -12,7 +12,7 @@ static uint32_t _ReadU32(const uint8_t **buffer_ptr);
 static uint64_t _ReadU64(const uint8_t **buffer_ptr);
 
 // For watching the execution of the VM, obvs.
-#define VM_TRACE
+// #define VM_TRACE
 
 #ifdef VM_TRACE
 
