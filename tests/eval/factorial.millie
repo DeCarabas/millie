@@ -1,7 +1,7 @@
 # I can infer the type of factorial and apply it correctly.
 #
 # Expected: 120
-# Enabled: False
+# Enabled: True
 let rec factorial =
     fn n =>
        if n = 0 then

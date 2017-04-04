@@ -12,7 +12,7 @@ static uint32_t _ReadU32(const uint8_t **buffer_ptr);
 static uint64_t _ReadU64(const uint8_t **buffer_ptr);
 
 // For watching the execution of the VM, obvs.
-// #define VM_TRACE
+#define VM_TRACE
 
 #ifdef VM_TRACE
 
@@ -61,7 +61,7 @@ static const uint8_t *_TraceInstruction(const uint8_t *ip,
         case OPARG_U8:  fprintf(stderr, " %02x",    _ReadU8(&ip)); break;
         case OPARG_U16: fprintf(stderr, " %04x",    _ReadU16(&ip)); break;
         case OPARG_U32: fprintf(stderr, " %08x",    _ReadU32(&ip)); break;
-        case OPARG_U64: fprintf(stderr, " %016llx", _ReadU64(&ip)); break;
+        case OPARG_U64: fprintf(stderr, " %llx",    _ReadU64(&ip)); break;
         case OPARG_IDX: fprintf(stderr, "[%d]",  (int16_t)_ReadU16(&ip)); break;
         case OPARG_OFF:
             {
@@ -73,11 +73,10 @@ static const uint8_t *_TraceInstruction(const uint8_t *ip,
         default: break;
         }
     }
-    fprintf(stderr, "\n");
     return ip;
 }
 
-static void _TraceOp(const uint8_t *code,
+static void _TraceStep(const uint8_t *code,
                      struct CompiledExpression *def,
                      struct Frame *frame)
 {
@@ -86,14 +85,37 @@ static void _TraceOp(const uint8_t *code,
         fprintf(stderr, "    r%zu: 0x%llx\n", i, frame->registers[i]);
     }
     _TraceInstruction(code, def);
+    fprintf(stderr, "\n\n");
+}
+
+static void _TraceFunctionEnter(struct Module *module,
+                                int func_id,
+                                uint64_t closure,
+                                uint64_t arg0)
+{
+    fprintf(stderr, "Called %p: %d\n", module, func_id);
+    fprintf(stderr, "  Closure: %llx  Arg0: %llx\n", closure, arg0);
+
+    struct CompiledExpression *def = &(module->functions[func_id]);
+    const uint8_t *ip = def->code;
+    while((size_t)(ip - def->code) < def->code_length) {
+        fprintf(stderr, "  ");
+        ip = _TraceInstruction(ip, def);
+        fprintf(stderr, "\n");
+    }
+
+    fprintf(stderr, "  Output in register r%d\n", def->result_register);
     fprintf(stderr, "\n");
 }
 
-#define TRACE_VM(ip, def, frame) _TraceOp(ip, def, frame)
+#define TRACE_STEP(ip, def, frame) _TraceStep(ip, def, frame)
+#define TRACE_ENTER(module, func_id, closure, arg0) \
+    _TraceFunctionEnter(module, func_id, closure, arg0)
 
 #else
 
-#define TRACE_VM(ip, def, frame)
+#define TRACE_STEP(ip, def, frame)
+#define TRACE_ENTER(module, func_id, closure, arg0)
 
 #endif
 
@@ -148,6 +170,8 @@ uint64_t EvaluateCode(struct Module *module,
                       uint64_t closure,
                       uint64_t arg0)
 {
+    TRACE_ENTER(module, func_id, closure, arg0);
+
     struct CompiledExpression *code = &(module->functions[func_id]);
     struct Frame frame;
     frame.registers = calloc(code->register_count, sizeof(uint64_t));
@@ -157,7 +181,7 @@ uint64_t EvaluateCode(struct Module *module,
     const uint8_t *ip = code->code;
     bool halt = false;
     while(!halt) {
-        TRACE_VM(ip, code, &frame);
+        TRACE_STEP(ip, code, &frame);
         MILLIE_OPCODE op = *(ip++);
         switch(op) {
 

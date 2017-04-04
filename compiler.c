@@ -257,6 +257,39 @@ static uint8_t _CompileLet(struct CompileContext *context,
     return result;
 }
 
+static uint8_t _CompileLambdaImpl(struct CompileContext *context,
+                                  struct Expression *expression,
+                                  uint8_t closure_register);
+
+static uint8_t _CompileLetRec(struct CompileContext *context,
+                              struct Expression *expression)
+{
+    // `let rec` requires special handling. In the fullness of time, we should
+    // loosen the restrictions on `let rec`, but for now we stick with this,
+    // which is a fine time-honored tradition dating back to Standard ML.
+    uint8_t dest_reg = _GetFreeIntRegister(context);
+    if (expression->let_value->type != EXP_LAMBDA) {
+        _ReportCompileError(
+            context,
+            expression->let_value,
+            "the expression in a let rec must be a function definition"
+        );
+        return dest_reg;
+    }
+
+    // Bind the identifier to our target register, and then compile the lambda,
+    // knowing that the closure object goes straight into the target
+    // register. That way, if the closure refers to itself, it will have the
+    // right pointer already in the right place.
+    _PushBinding(context, expression->let_id, dest_reg);
+    _CompileLambdaImpl(context, expression->let_value, dest_reg);
+
+    // Now we can compile the body.
+    uint8_t body_reg = _CompileExpression(context, expression->let_body);
+    _PopBinding(context);
+    return body_reg;
+}
+
 static uint8_t _CompileIdentifierImpl(struct CompileContext *context, Symbol id)
 {
     // Look to see if it's a local that's in a register.
@@ -314,10 +347,11 @@ static uint8_t _CompileIdentifier(struct CompileContext *context,
     return _CompileIdentifierImpl(context, expression->identifier_id);
 }
 
-static uint8_t _CompileLambda(struct CompileContext *context,
-                              struct Expression *expression)
+static uint8_t _CompileLambdaImpl(struct CompileContext *context,
+                                  struct Expression *expression,
+                                  uint8_t closure_register)
 {
-    // Compile the lambda.
+    // First, compile the actual function.
     // TODO: Optimize the case where no closure is required:
     //   - Generate no allocation
     //   - Don't use r0?
@@ -341,18 +375,17 @@ static uint8_t _CompileLambda(struct CompileContext *context,
         _FinishCompile(&child_context, ret_register, result);
     }
 
-    // Now generate the closure object.
-    uint8_t target_register = _GetFreeIntRegister(context);
+    // Now generate the closure object into `closure_register`.
     _WriteCodeU8(context, OP_ALLOCA_64);
     _WriteCodeU64(context, result->closure_length + 1);
-    _WriteCodeU8(context, target_register);
+    _WriteCodeU8(context, closure_register);
 
     // And write out our stuffs. First thing in a closure is
     // the pointer to code.
     uint8_t id_reg = _WriteLoadLiteral(context, func_id);
 
     _WriteCodeU8(context, OP_STOREA_64);
-    _WriteCodeU8(context, target_register);
+    _WriteCodeU8(context, closure_register);
     _WriteCodeU16(context, 0);
     _WriteCodeU8(context, id_reg);
 
@@ -362,14 +395,22 @@ static uint8_t _CompileLambda(struct CompileContext *context,
         id_reg = _CompileIdentifierImpl(context, result->closure[i]);
 
         _WriteCodeU8(context, OP_STOREA_64);
-        _WriteCodeU8(context, target_register);
+        _WriteCodeU8(context, closure_register);
         _WriteCodeU16(context, i + 1);
         _WriteCodeU8(context, id_reg);
 
         _FreeRegister(context, id_reg);
     }
 
-    return target_register;
+    return closure_register;
+}
+
+
+static uint8_t _CompileLambda(struct CompileContext *context,
+                              struct Expression *expression)
+{
+    uint8_t closure_register = _GetFreeIntRegister(context);
+    return _CompileLambdaImpl(context, expression, closure_register);
 }
 
 static uint8_t _CompileApply(struct CompileContext *context,
@@ -548,6 +589,7 @@ static uint8_t _CompileExpression(struct CompileContext *context,
     switch(expression->type) {
     case EXP_INTEGER_CONSTANT: return _CompileIntegerLiteral(context, expression);
     case EXP_LET: return _CompileLet(context, expression);
+    case EXP_LETREC: return _CompileLetRec(context, expression);
     case EXP_IDENTIFIER: return _CompileIdentifier(context, expression);
     case EXP_LAMBDA: return _CompileLambda(context, expression);
     case EXP_APPLY: return _CompileApply(context, expression);
@@ -560,12 +602,11 @@ static uint8_t _CompileExpression(struct CompileContext *context,
     case EXP_ERROR:
         break;
 
-    case EXP_LETREC:
     case EXP_INVALID:
         _ReportCompileError(
             context,
             expression,
-            "Unsupported compile expression"
+            "Unsupported expression during compilation"
         );
         break;
     }
