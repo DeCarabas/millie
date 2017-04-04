@@ -1,0 +1,8 @@
+# I can infer the type of factorial and apply it correctly.
+#
+# ExpectFailure: True
+# ExpectedError: the expression in a let rec must be a function
+let rec
+    x = x + 1
+in
+    x
