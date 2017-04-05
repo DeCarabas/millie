@@ -88,18 +88,27 @@ static void _TraceStep(const uint8_t *code,
     fprintf(stderr, "\n\n");
 }
 
-static void _TraceFunctionEnter(struct Module *module,
-                                int func_id,
-                                uint64_t closure,
-                                uint64_t arg0)
+static void _TraceFunctionBody(struct Module *module,
+                               int func_id,
+                               const uint8_t *curr_ip,
+                               uint64_t closure,
+                               uint64_t arg0)
 {
-    fprintf(stderr, "Called %p: %d\n", module, func_id);
+    const char *what = (curr_ip == NULL) ? "Called" : "Returned to";
+    fprintf(stderr, "%s %p: %d\n", what, module, func_id);
     fprintf(stderr, "  Closure: %llx  Arg0: %llx\n", closure, arg0);
 
     struct CompiledExpression *def = &(module->functions[func_id]);
     const uint8_t *ip = def->code;
+
+    if (curr_ip == NULL) { curr_ip = ip; }
+
     while((size_t)(ip - def->code) < def->code_length) {
-        fprintf(stderr, "  ");
+        if (ip == curr_ip) {
+            fprintf(stderr, " > ");
+        } else {
+            fprintf(stderr, "   ");
+        }
         ip = _TraceInstruction(ip, def);
         fprintf(stderr, "\n");
     }
@@ -110,12 +119,15 @@ static void _TraceFunctionEnter(struct Module *module,
 
 #define TRACE_STEP(ip, def, frame) _TraceStep(ip, def, frame)
 #define TRACE_ENTER(module, func_id, closure, arg0) \
-    _TraceFunctionEnter(module, func_id, closure, arg0)
+    _TraceFunctionBody(module, func_id, NULL, closure, arg0)
+#define TRACE_RETURN(module, func_id, ip, closure, arg0) \
+    _TraceFunctionBody(module, func_id, ip, closure, arg0)
 
 #else
 
 #define TRACE_STEP(ip, def, frame)
 #define TRACE_ENTER(module, func_id, closure, arg0)
+#define TRACE_RETURN(module, func_id, ip, closure, arg0)
 
 #endif
 
@@ -159,10 +171,13 @@ static uint64_t _ReadU64(const uint8_t **buffer_ptr) {
         (((uint64_t)buffer[7]) << 56);
 }
 
-#define MAX_ALLOC_SIZE (512)
-static void *_AllocateArray(size_t element_size, int count)
+static struct RuntimeClosure *_AllocateClosure(int func_id, int slot_count)
 {
-    return malloc(element_size * count); // TODO: Garbage collection.
+    struct RuntimeClosure *closure = malloc(
+        sizeof(struct RuntimeClosure) + (slot_count * sizeof(uint64_t))
+    );
+    closure->function_id = func_id;
+    return closure;
 }
 
 uint64_t EvaluateCode(struct Module *module,
@@ -235,6 +250,8 @@ uint64_t EvaluateCode(struct Module *module,
                     arg_val
                 );
                 frame.registers[ret_reg] = retval;
+
+                TRACE_RETURN(module, func_id, ip, closure, arg0);
             }
             break;
 
@@ -321,19 +338,23 @@ uint64_t EvaluateCode(struct Module *module,
             }
             break;
 
-        case OP_ALLOCA_64:
+        case OP_NEW_CLOSURE:
             {
-                uint64_t count = _ReadU64(&ip);
+                uint8_t funcid_reg = _ReadU8(&ip);
                 uint8_t dst_reg = _ReadU8(&ip);
 
-                if (count > MAX_ALLOC_SIZE) {
-                    fprintf(stderr, "ERROR: Too much allocation\n");
-                    halt = true;
-                    break;
+                int func_id = (int)frame.registers[funcid_reg];
+                struct CompiledExpression *target;
+                target = &(module->functions[func_id]);
+
+                struct RuntimeClosure *closure;
+                if (target->closure_length > 0) {
+                    closure = _AllocateClosure(func_id, target->closure_length);
+                } else {
+                    closure = &(target->static_closure);
                 }
 
-                uint64_t *dest = _AllocateArray(sizeof(uint64_t), count);
-                frame.registers[dst_reg] = (uint64_t)dest;
+                frame.registers[dst_reg] = (uint64_t)closure;
             }
             break;
 

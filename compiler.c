@@ -199,6 +199,7 @@ static void _PopBinding(struct CompileContext *context)
 
 static void _FinishCompile(struct CompileContext *context,
                            uint8_t result_register,
+                           int func_id,
                            struct CompiledExpression *result)
 {
     result->result_register = result_register;
@@ -208,8 +209,13 @@ static void _FinishCompile(struct CompileContext *context,
     result->code_length = context->code_write - context->code;
     context->code = NULL;
 
-    result->closure = context->closure_symbols;
     result->closure_length = context->closure_top;
+    if (result->closure_length > 0) {
+        result->closure = context->closure_symbols;
+    } else {
+        result->static_closure.function_id = func_id;
+        free(context->closure_symbols);
+    }
 
     result->register_count = context->max_registers;
 
@@ -352,9 +358,6 @@ static uint8_t _CompileLambdaImpl(struct CompileContext *context,
                                   uint8_t closure_register)
 {
     // First, compile the actual function.
-    // TODO: Optimize the case where no closure is required:
-    //   - Generate no allocation
-    //   - Don't use r0?
     int func_id;
     struct CompiledExpression *result = _AddFunction(context->module, &func_id);
     {
@@ -363,6 +366,7 @@ static uint8_t _CompileLambdaImpl(struct CompileContext *context,
 
         // Reserve register 0 for the closure.
         child_context.integer_registers++;
+        child_context.max_registers++;
 
         // And the next one for the arg...
         uint8_t arg_register = _GetFreeIntRegister(&child_context);
@@ -372,25 +376,17 @@ static uint8_t _CompileLambdaImpl(struct CompileContext *context,
             expression->lambda_body
         );
         _PopBinding(&child_context);
-        _FinishCompile(&child_context, ret_register, result);
+        _FinishCompile(&child_context, ret_register, func_id, result);
     }
 
     // Now generate the closure object into `closure_register`.
-    _WriteCodeU8(context, OP_ALLOCA_64);
-    _WriteCodeU64(context, result->closure_length + 1);
-    _WriteCodeU8(context, closure_register);
-
-    // And write out our stuffs. First thing in a closure is
-    // the pointer to code.
     uint8_t id_reg = _WriteLoadLiteral(context, func_id);
-
-    _WriteCodeU8(context, OP_STOREA_64);
-    _WriteCodeU8(context, closure_register);
-    _WriteCodeU16(context, 0);
+    _WriteCodeU8(context, OP_NEW_CLOSURE);
     _WriteCodeU8(context, id_reg);
-
+    _WriteCodeU8(context, closure_register);
     _FreeRegister(context, id_reg);
 
+    // Load in the closed values.
     for(size_t i = 0; i < result->closure_length; i++) {
         id_reg = _CompileIdentifierImpl(context, result->closure[i]);
 
@@ -631,6 +627,6 @@ int CompileExpression(struct Expression *expression,
     context.tokens = tokens;
 
     uint8_t result_register = _CompileExpression(&context, expression);
-    _FinishCompile(&context, result_register, result);
+    _FinishCompile(&context, result_register, func_id, result);
     return func_id;
 }

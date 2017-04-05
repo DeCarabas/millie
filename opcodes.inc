@@ -37,10 +37,18 @@ OPCODE(LOADA_64, REG, IDX, DREG)
 // STOREA_64(0, 7, 6) is like the C expression ((uint64_t *)r0)[7] = r6
 OPCODE(STOREA_64, REG, IDX, REG)
 
-// ALLOCA allocates an array of the particular size.
-OPCODE(ALLOCA_64, U64, DREG, 0)
+// NEW_CLOSURE allocates a new closure for the function id in the specified
+// register, and stores the allocated closure in the specified register.
+//
+// In memory, a closure is a pointer to an array of 64-bit slots, the first of
+// which contains the function ID. The rest of the slots contain the closed
+// values.
+//
+// (The runtime and the compiler both know how big the closure object needs to
+// be based on the function ID.)
+OPCODE(NEW_CLOSURE, REG, DREG, 0)
 
-// CALL calls a function, indicated by the function pointer in the first
+// CALL calls a function, indicated by the closure pointer in the first
 // register. The single argument value is in the second register, and the
 // third register has the destination for the resulting value.
 OPCODE(CALL, REG, REG, DREG)

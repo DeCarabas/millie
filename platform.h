@@ -301,22 +301,53 @@ struct TypeExp *GetExpressionType(
     struct MillieTokens *tokens,
     struct Errors **errors);
 
-/*
- * Compiler/VM
- */
+
+// Compiler/VM
+//
 typedef enum MILLIE_OPCODE {
 #define OPCODE(name, _x, _y, _z)  OP_##name ,
 #include "opcodes.inc"
 #undef OPCODE
 } MILLIE_OPCODE;
 
+// This is a runtime closure object; an array of 64 bit slots, and the function
+// ID is the first slot.
+struct RuntimeClosure {
+    uint64_t function_id;
+    uint64_t slots[0];
+};
+
 struct CompiledExpression {
     uint8_t *code;
     size_t code_length;
     size_t register_count;
 
-    Symbol *closure;
+    // If closure_length > 0, then:
+    //
+    // - The closure array is a list of symbols used to tell the compiler what
+    //   symbols need to be in the closure.
+    //
+    // - The NEW_CLOSURE opcode will allocate a new RuntimeClosure object, with
+    //   closure_length slots.
+    //
+    // - The compiler will issue closure_length loads in order to initialize
+    //   each slot of the dynamically-allocated closure.
+    //
+    // If closure_length == 0, then:
+    //
+    // - The static_closure structure is initialized with the function ID of
+    //   the CompiledExpression within its module.
+    //
+    // - The NEW_CLOSURE opcode will put the address of static_closure into the
+    //   destination register.
+    //
+    // - The compiler will not issue any loads.
+    //
     size_t closure_length;
+    union {
+        Symbol *closure;
+        struct RuntimeClosure static_closure;
+    };
 
     uint8_t result_register;
 };
