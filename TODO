@@ -1,0 +1,22 @@
+- Tail recursion, either implicitly or via a keyword of some kind.
+
+- Jump lables: rather than encoding jump targets as instruction
+  offsets, instead encode jump targets as indices into a jump table
+  associated with the function. This will make it easier to use the
+  bytecode as input to generating native code.
+
+- Native code gen: translate the byte code to C
+
+- Data types:
+
+  - Tuples
+  - Enumerated types
+  - Arrays
+  - Lists?
+  - Records?
+  - Union types?
+  - Unit?
+
+- Pattern matching
+
+- Garbage collector
