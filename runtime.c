@@ -171,12 +171,17 @@ static uint64_t _ReadU64(const uint8_t **buffer_ptr) {
         (((uint64_t)buffer[7]) << 56);
 }
 
+size_t LifetimeAllocations = 0;
+
 static struct RuntimeClosure *_AllocateClosure(int func_id, int slot_count)
 {
-    struct RuntimeClosure *closure = malloc(
-        sizeof(struct RuntimeClosure) + (slot_count * sizeof(uint64_t))
-    );
+    size_t alloc_size =
+        sizeof(struct RuntimeClosure) + (slot_count * sizeof(uint64_t));
+
+    LifetimeAllocations += alloc_size;
+    struct RuntimeClosure *closure = malloc(alloc_size);
     closure->function_id = func_id;
+
     return closure;
 }
 

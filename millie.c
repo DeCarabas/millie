@@ -14,10 +14,9 @@
 #include "compiler.c"
 #include "runtime.c"
 
-/*
- * Driver
- */
-
+//
+// Driver
+//
 static void PrintErrors(const char *fname, struct MillieTokens *tokens,
                         struct Errors *errors)
 {
@@ -210,6 +209,9 @@ int main(int argc, const char *argv[])
 
     if (verbose) {
         fprintf(stderr, "Arena: %lu bytes used\n", ArenaAllocated(arena));
+        fprintf(stderr, "GC Heap:\n");
+        fprintf(stderr, "  Lifetime allocations: %zd bytes\n", LifetimeAllocations);
+
         fprintf(stderr, "Size of expression is %lu bytes\n", sizeof(struct Expression));
         fprintf(stderr, "Size of type exp is %lu bytes\n", sizeof(struct TypeExp));
     }

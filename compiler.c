@@ -265,14 +265,19 @@ static uint8_t _CompileLet(struct CompileContext *context,
 
 static uint8_t _CompileLambdaImpl(struct CompileContext *context,
                                   struct Expression *expression,
+                                  Symbol self_id,
                                   uint8_t closure_register);
 
 static uint8_t _CompileLetRec(struct CompileContext *context,
                               struct Expression *expression)
 {
-    // `let rec` requires special handling. In the fullness of time, we should
-    // loosen the restrictions on `let rec`, but for now we stick with this,
-    // which is a fine time-honored tradition dating back to Standard ML.
+    // `let rec` requires special handling, and so right now we require that
+    // the expression in a `let rec` is a function definition.
+    //
+    // In the fullness of time, we should loosen the restrictions on `let rec`,
+    // but for now we stick with this, which is a fine time-honored tradition
+    // dating back to Standard ML.
+    //
     uint8_t dest_reg = _GetFreeIntRegister(context);
     if (expression->let_value->type != EXP_LAMBDA) {
         _ReportCompileError(
@@ -284,11 +289,20 @@ static uint8_t _CompileLetRec(struct CompileContext *context,
     }
 
     // Bind the identifier to our target register, and then compile the lambda,
-    // knowing that the closure object goes straight into the target
-    // register. That way, if the closure refers to itself, it will have the
-    // right pointer already in the right place.
+    // knowing that the closure object goes straight into the target register.
+    //
+    // (This is not, strictly speaking, necessary. If the closure refers to
+    // itself then it will pull the value from r0 directly, without creating a
+    // loop in its own closure. When we do mutual recursion that will no longer
+    // be the case.)
+    //
     _PushBinding(context, expression->let_id, dest_reg);
-    _CompileLambdaImpl(context, expression->let_value, dest_reg);
+    _CompileLambdaImpl(
+        context,
+        expression->let_value,
+        expression->let_id,
+        dest_reg
+    );
 
     // Now we can compile the body.
     uint8_t body_reg = _CompileExpression(context, expression->let_body);
@@ -298,7 +312,9 @@ static uint8_t _CompileLetRec(struct CompileContext *context,
 
 static uint8_t _CompileIdentifierImpl(struct CompileContext *context, Symbol id)
 {
-    // Look to see if it's a local that's in a register.
+    // Look to see if it's a local or an argument that's already bound in a
+    // register.
+    //
     for(int i = context->binding_top; i >= 0; i--) {
         if (context->bindings[i].symbol == id) {
             _RetainRegister(context, context->bindings[i].reg);
@@ -306,12 +322,13 @@ static uint8_t _CompileIdentifierImpl(struct CompileContext *context, Symbol id)
         }
     }
 
-    // Must be in our closure.
-    //
+    // The variable must be in our closure, the type checker said it was.
     // TODO: It would be great if we could save the result of this load and not
-    // do it all the time but I'm not entirely sure how...
+    //       do it all the time but I'm not entirely sure how.
     //
-    // Closure is always in r0.
+    // First, look for the offset within our closure. We might already be
+    // tracking this variable.
+    //
     int closure_offset = -1;
     for (int i = 0; i < context->closure_top; i++) {
         if (context->closure_symbols[i] == id) {
@@ -320,6 +337,10 @@ static uint8_t _CompileIdentifierImpl(struct CompileContext *context, Symbol id)
         }
     }
 
+    // If we didn't find the symbol in the closure we're building then we'll
+    // need to add it. (So closure_symbols is effectively the list of free
+    // variables that we've found in our expression.)
+    //
     if (closure_offset < 0) {
         if (context->closure_capacity == context->closure_top) {
             uint32_t new_capacity = context->closure_capacity * 2;
@@ -334,15 +355,17 @@ static uint8_t _CompileIdentifierImpl(struct CompileContext *context, Symbol id)
         context->closure_top++;
     }
 
+    // Now that we know the offset into the closure to read from, load from our
+    // closure, which is always in r0.
+    //
+    // Note that closure_offset is (index + 1) because closure[0] is always the
+    // current function pointer. (See the definition of `struct RuntimeClosure`.
+    //
     uint8_t load_target = _GetFreeIntRegister(context);
-
-    // Load from the closure in r0. Note that closure_offset is +1 because
-    // we're skipping over the function pointer which is at r0+0.
     _WriteCodeU8(context, OP_LOADA_64);
     _WriteCodeU8(context, 0);
     _WriteCodeU16(context, (int16_t)closure_offset + 1);
     _WriteCodeU8(context, load_target);
-
     return load_target;
 }
 
@@ -355,6 +378,7 @@ static uint8_t _CompileIdentifier(struct CompileContext *context,
 
 static uint8_t _CompileLambdaImpl(struct CompileContext *context,
                                   struct Expression *expression,
+                                  Symbol self_id,
                                   uint8_t closure_register)
 {
     // First, compile the actual function.
@@ -364,9 +388,15 @@ static uint8_t _CompileLambdaImpl(struct CompileContext *context,
         struct CompileContext child_context;
         _InitCompileContext(&child_context, context);
 
-        // Reserve register 0 for the closure.
-        child_context.integer_registers++;
-        child_context.max_registers++;
+        // Reserve register 0 for the closure in the target, and if we're in a
+        // let_rec then remind the target that its name is bound to the closure
+        // in r0. (This prevents us from allocating a closure just to contain a
+        // pointer to the closure that we know is already in r0.)
+        //
+        uint8_t self_register = _GetFreeIntRegister(&child_context);
+        if (self_id != INVALID_SYMBOL) {
+            _PushBinding(&child_context, self_id, self_register);
+        }
 
         // And the next one for the arg...
         uint8_t arg_register = _GetFreeIntRegister(&child_context);
@@ -376,6 +406,11 @@ static uint8_t _CompileLambdaImpl(struct CompileContext *context,
             expression->lambda_body
         );
         _PopBinding(&child_context);
+
+        if (self_id != INVALID_SYMBOL) {
+            _PopBinding(&child_context);
+        }
+
         _FinishCompile(&child_context, ret_register, func_id, result);
     }
 
@@ -406,7 +441,12 @@ static uint8_t _CompileLambda(struct CompileContext *context,
                               struct Expression *expression)
 {
     uint8_t closure_register = _GetFreeIntRegister(context);
-    return _CompileLambdaImpl(context, expression, closure_register);
+    return _CompileLambdaImpl(
+        context,
+        expression,
+        INVALID_SYMBOL,
+        closure_register
+    );
 }
 
 static uint8_t _CompileApply(struct CompileContext *context,
