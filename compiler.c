@@ -293,8 +293,8 @@ static uint8_t _CompileLetRec(struct CompileContext *context,
     //
     // (This is not, strictly speaking, necessary. If the closure refers to
     // itself then it will pull the value from r0 directly, without creating a
-    // loop in its own closure. When we do mutual recursion that will no longer
-    // be the case.)
+    // loop in its own closure. When we implement mutual recursion that will no
+    // longer be the case.)
     //
     _PushBinding(context, expression->let_id, dest_reg);
     _CompileLambdaImpl(
@@ -638,6 +638,7 @@ static uint8_t _CompileExpression(struct CompileContext *context,
     case EXP_ERROR:
         break;
 
+    case EXP_TUPLE:
     case EXP_INVALID:
         _ReportCompileError(
             context,

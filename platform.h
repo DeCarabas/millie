@@ -1,6 +1,7 @@
-/*
- * This is the giant uber-include file for the Millie implementation.
- */
+// ----------------------------------------------------------------------------
+// This is the giant uber-include file for the Millie implementation.
+// Everything needed cross-module is in here.
+// ----------------------------------------------------------------------------
 #include <assert.h>
 #include <limits.h>
 #include <stdarg.h>
@@ -13,14 +14,17 @@
 
 #define NORETURN  __attribute__((noreturn))
 
-/*
- * Assertion and failure
- */
+// ----------------------------------------------------------------------------
+// Assertion and Failure
+// ----------------------------------------------------------------------------
+
 void Fail(char *message);
 
-/*
- * Memory allocation
- */
+
+// ----------------------------------------------------------------------------
+// Memory Allocation
+// ----------------------------------------------------------------------------
+
 struct Arena;
 
 struct Arena *MakeFreshArena(void);
@@ -28,14 +32,18 @@ void FreeArena(struct Arena **arena);
 void *ArenaAllocate(struct Arena *arena, size_t size);
 size_t ArenaAllocated(struct Arena *arena);
 
-/*
- * Hash functions
- */
+
+// ----------------------------------------------------------------------------
+// Hash Functions
+// ----------------------------------------------------------------------------
+
 uint32_t CityHash32(const char *s, size_t len);
 
-/*
- * String functions
- */
+
+// ----------------------------------------------------------------------------
+// Strings
+// ----------------------------------------------------------------------------
+
 struct MString;
 struct MStringStatic {
     int _r0[2];
@@ -56,9 +64,11 @@ const char *MStringData(struct MString *string);
 unsigned int MStringHash32(struct MString *string);
 bool MStringEquals(struct MString *a, struct MString *b);
 
-/*
- * List functions
- */
+
+// ----------------------------------------------------------------------------
+// Array List
+// ----------------------------------------------------------------------------
+
 struct ArrayList {
     unsigned int item_count;
     unsigned int capacity;
@@ -73,9 +83,10 @@ void *ArrayListIndex(struct ArrayList *array, unsigned int index);
 unsigned int ArrayListAdd(struct ArrayList *array, void *item);
 
 
-/*
- * Error functions
- */
+// ----------------------------------------------------------------------------
+// Errors
+// ----------------------------------------------------------------------------
+
 struct ErrorReport {
     struct ErrorReport *next;
     struct MString *message;
@@ -94,9 +105,11 @@ void AddErrorFV(struct Errors **errors_ptr, unsigned int start_pos,
 void FreeErrors(struct Errors **errors_ptr);
 struct ErrorReport *FirstError(struct Errors *errors);
 
-/*
- * Lexer
- */
+
+// ----------------------------------------------------------------------------
+// Lexer
+// ----------------------------------------------------------------------------
+
 typedef enum {
     TOK_EOF = 0,
 
@@ -122,6 +135,7 @@ typedef enum {
     TOK_REC,
     TOK_THEN,
     TOK_ELSE,
+    TOK_COMMA,
 } MILLIE_TOKEN;
 
 struct MillieToken {
@@ -145,9 +159,11 @@ struct MString *ExtractToken(struct MillieTokens *tokens, uint32_t pos);
 struct MillieToken GetToken(struct MillieTokens *tokens, uint32_t pos);
 void PrintTokens(struct MillieTokens *tokens);
 
-/*
- * Symbol Tables
- */
+
+// ----------------------------------------------------------------------------
+// Symbol Table
+// ----------------------------------------------------------------------------
+
 typedef uint32_t Symbol;
 #define INVALID_SYMBOL (0)
 struct SymbolTable;
@@ -157,9 +173,11 @@ void SymbolTableFree(struct SymbolTable **table_ptr);
 Symbol FindOrCreateSymbol(struct SymbolTable *table, struct MString *key);
 struct MString *FindSymbolKey(struct SymbolTable *table, Symbol symbol);
 
-/*
- * AST
- */
+
+// ----------------------------------------------------------------------------
+// AST
+// ----------------------------------------------------------------------------
+
 typedef enum {
     EXP_INVALID = 0,
     EXP_ERROR,
@@ -174,6 +192,7 @@ typedef enum {
     EXP_IF,
     EXP_BINARY,
     EXP_UNARY,
+    EXP_TUPLE,
 } ExpressionType;
 
 struct Expression {
@@ -221,6 +240,11 @@ struct Expression {
             MILLIE_TOKEN unary_operator;
             struct Expression *unary_arg;
         };
+        struct
+        {
+            struct Expression *tuple_first;
+            struct Expression *tuple_next;
+        };
     };
     uint32_t start_token;
     uint32_t end_token;
@@ -252,12 +276,16 @@ struct Expression *MakeBooleanLiteral(struct Arena *arena, uint32_t pos,
                                       bool value);
 struct Expression *MakeIntegerLiteral(struct Arena *arena, uint32_t pos,
                                       uint64_t value);
+struct Expression *MakeTuple(struct Arena *arena, struct Expression *first,
+                             struct Expression *next);
 void DumpExpression(struct SymbolTable *table, struct MillieTokens *tokens,
                     struct Expression *expression);
 
-/*
- * Parsing
- */
+
+// ----------------------------------------------------------------------------
+// Parser
+// ----------------------------------------------------------------------------
+
 struct Expression *ParseExpression(struct Arena *arena,
                                    struct MillieTokens *tokens,
                                    struct SymbolTable *symbol_table,
@@ -265,9 +293,10 @@ struct Expression *ParseExpression(struct Arena *arena,
 
 
 
-/*
- * Typing
- */
+// ----------------------------------------------------------------------------
+// Type Checker
+// ----------------------------------------------------------------------------
+
 typedef enum {
     TYPEEXP_INVALID = 0,
     TYPEEXP_ERROR,
@@ -302,16 +331,16 @@ struct TypeExp *GetExpressionType(
     struct Errors **errors);
 
 
-// Compiler/VM
-//
+// ----------------------------------------------------------------------------
+// Bytecode Compiler
+// ----------------------------------------------------------------------------
+
 typedef enum MILLIE_OPCODE {
 #define OPCODE(name, _x, _y, _z)  OP_##name ,
 #include "opcodes.inc"
 #undef OPCODE
 } MILLIE_OPCODE;
 
-// This is a runtime closure object; an array of 64 bit slots, and the function
-// ID is the first slot.
 struct RuntimeClosure {
     uint64_t function_id;
     uint64_t slots[0];

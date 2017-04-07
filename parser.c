@@ -2,6 +2,8 @@
 #include "platform.h"
 #endif
 
+// struct ParseContext is the record of things we're tracking while parsing, so
+// we don't have to pass quite so many arguments.
 struct ParseContext {
     struct Arena *arena;
     struct MString *buffer;
@@ -11,6 +13,10 @@ struct ParseContext {
     uint32_t pos;
     uint32_t lost_count;
 };
+
+// ----------------------------------------------------------------------------
+// Helper functions for parsing
+// ----------------------------------------------------------------------------
 
 static MILLIE_TOKEN _PeekToken(struct ParseContext *context)
 {
@@ -112,8 +118,6 @@ static void _Expect(struct ParseContext *context, MILLIE_TOKEN token,
     }
 }
 
-static struct Expression *_ParseExpr(struct ParseContext *context);
-
 static Symbol _ParseSymbol(struct ParseContext *context)
 {
     Symbol symbol = INVALID_SYMBOL;
@@ -132,6 +136,24 @@ static Symbol _ParseSymbol(struct ParseContext *context)
         _SyntaxError(context, "Expected an identifier");
     }
     return symbol;
+}
+
+// ----------------------------------------------------------------------------
+// Productions
+// ----------------------------------------------------------------------------
+
+static struct Expression *_ParseExpr(struct ParseContext *context);
+
+static struct Expression *_ParseTuple(struct ParseContext *context)
+{
+    struct Expression *expr = _ParseExpr(context);
+
+    if (_Match(context, TOK_COMMA)) {
+        struct Expression *rest = _ParseTuple(context);
+        expr = MakeTuple(context->arena, expr, rest);
+    }
+
+    return expr;
 }
 
 static struct Expression *_ParsePrimary(struct ParseContext *context)
@@ -161,9 +183,9 @@ static struct Expression *_ParsePrimary(struct ParseContext *context)
         return MakeIdentifier(context->arena, _PrevPos(context), sym);
     }
     if (_Match(context, TOK_LPAREN)) {
-        struct Expression *expr = _ParseExpr(context);
+        struct Expression *tuple = _ParseTuple(context);
         _Expect(context, TOK_RPAREN, "Expected a ')' after the expression.");
-        return expr;
+        return tuple;
     }
 
     _SyntaxError(context, "Expected an expression.");

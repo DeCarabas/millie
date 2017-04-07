@@ -808,6 +808,7 @@ static struct TypeExp *_Analyze(struct CheckContext *context,
     case EXP_FALSE:
         return &_BooleanTypeExp;
 
+    case EXP_TUPLE:
     case EXP_INVALID:
     case EXP_ERROR:
         {

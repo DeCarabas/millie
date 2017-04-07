@@ -2,15 +2,10 @@
 #include "platform.h"
 #endif
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpadded"
-
 struct KeywordToken {
     const char *str;
     MILLIE_TOKEN token;
 };
-
-#pragma GCC diagnostic pop
 
 static struct MillieTokens *_CreateTokens(struct MString *buffer)
 {
@@ -178,6 +173,7 @@ struct MillieTokens *LexBuffer(struct MString *buffer, struct Errors **errors)
         case '-': _AddToken(tokens, TOK_MINUS, pos, 1); ptr++; break;
         case '*': _AddToken(tokens, TOK_STAR, pos, 1); ptr++; break;
         case '/': _AddToken(tokens, TOK_SLASH, pos, 1); ptr++; break;
+        case ',': _AddToken(tokens, TOK_COMMA, pos, 1); ptr++; break;
         case '=':
             {
                 ptr++;

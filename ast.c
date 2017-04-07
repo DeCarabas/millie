@@ -133,6 +133,18 @@ struct Expression *MakeIntegerLiteral(struct Arena *arena, uint32_t pos,
     return result;
 }
 
+struct Expression *MakeTuple(struct Arena *arena, struct Expression *first,
+                             struct Expression *next)
+{
+    struct Expression *result = ArenaAllocate(arena, sizeof(struct Expression));
+    result->type = EXP_TUPLE;
+    result->tuple_first = first;
+    result->tuple_next = next;
+    result->start_token = first->start_token;
+    result->end_token = next->end_token;
+    return result;
+}
+
 static void _PrintIndent(int indent)
 {
     for(int i = 0; i < indent; i++) {
@@ -242,6 +254,17 @@ static void _DumpExprImpl(
             _PrintIndent(indent); printf("unary %s\n", MStringData(operator));
             _DumpExprImpl(table, tokens, expression->unary_arg, indent+1);
             MStringFree(&operator);
+        }
+        break;
+
+    case EXP_TUPLE:
+        {
+            _PrintIndent(indent); printf("tuple\n");
+            while(expression->type == EXP_TUPLE) {
+                _DumpExprImpl(table, tokens, expression->tuple_first, indent+1);
+                expression = expression->tuple_next;
+            }
+            _DumpExprImpl(table, tokens, expression, indent+1);
         }
         break;
 
