@@ -305,6 +305,7 @@ typedef enum {
     TYPEEXP_FUNC,
     TYPEEXP_INT,
     TYPEEXP_BOOL,
+    TYPEEXP_TUPLE,
 } TypeExpType;
 
 struct TypeExp {
@@ -313,12 +314,14 @@ struct TypeExp {
     {
         struct TypeExp *arg_first;
         struct TypeExp *func_from;
+        struct TypeExp *tuple_first;
         struct TypeExp *var_instance;
     };
     union
     {
         struct TypeExp *arg_second;
         struct TypeExp *func_to;
+        struct TypeExp *tuple_rest;
         struct TypeExp *var_temp_other;
     };
 };

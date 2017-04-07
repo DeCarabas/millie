@@ -63,6 +63,18 @@ static struct TypeExp *_MakeFunctionType(struct Arena *arena,
     return result;
 }
 
+static struct TypeExp *_MakeTupleType(struct Arena *arena,
+                                      struct TypeExp *first_type,
+                                      struct TypeExp *rest_type)
+{
+    struct TypeExp *result;
+    result = ArenaAllocate(arena, sizeof(struct TypeExp));
+    result->type = TYPEEXP_TUPLE;
+    result->tuple_first = first_type;
+    result->tuple_rest = rest_type;
+    return result;
+}
+
 static struct TypeExp *_MakeTypeVar(struct Arena *arena)
 {
     struct TypeExp *result = ArenaAllocate(arena, sizeof(struct TypeExp));
@@ -119,8 +131,8 @@ static struct TypeExp *_MakeGenericTypeExpImpl(
             type->var_temp_other = result;
             return result;
         }
-        break;
     case TYPEEXP_FUNC:
+    case TYPEEXP_TUPLE:
         {
             struct TypeExp *arg_first = _MakeGenericTypeExpImpl(
                 arena,
@@ -186,7 +198,7 @@ static struct TypeExp *_MakeFreshTypeExpCopy(struct Arena *arena,
             type->var_temp_other = _MakeTypeVar(arena);
             return type->var_temp_other;
         }
-        break;
+    case TYPEEXP_TUPLE:
     case TYPEEXP_FUNC:
         {
             struct TypeExp *arg_first, *arg_second;
@@ -204,7 +216,6 @@ static struct TypeExp *_MakeFreshTypeExpCopy(struct Arena *arena,
             result->arg_second = arg_second;
             return result;
         }
-        break;
     case TYPEEXP_VARIABLE:
     case TYPEEXP_BOOL:
     case TYPEEXP_INT:
@@ -314,6 +325,17 @@ struct MString *_FormatTypeExpressionImpl(struct TypeExp *type, int *counter)
             result = MStringPrintF("( %s -> %s )", MStringData(from), MStringData(to));
             MStringFree(&from);
             MStringFree(&to);
+            return result;
+        }
+
+    case TYPEEXP_TUPLE:
+        {
+            struct MString *left, *right, *result;
+            left = _FormatTypeExpressionImpl(type->tuple_first, counter);
+            right = _FormatTypeExpressionImpl(type->tuple_rest, counter);
+            result = MStringPrintF("%s * %s", MStringData(left), MStringData(right));
+            MStringFree(&left);
+            MStringFree(&right);
             return result;
         }
 
@@ -788,6 +810,19 @@ static struct TypeExp *_AnalyzeUnary(
     return arg;
 }
 
+static struct TypeExp *_AnalyzeTuple(
+    struct CheckContext *context,
+    struct Expression *node,
+    struct TypeEnvironment *env,
+    struct NonGenericTypeList *non_generics
+)
+{
+    struct TypeExp *first, *rest;
+    first = _Analyze(context, node->tuple_first, env, non_generics);
+    rest = _Analyze(context, node->tuple_next, env, non_generics);
+    return _MakeTupleType(context->arena, first, rest);
+}
+
 static struct TypeExp *_Analyze(struct CheckContext *context,
                                 struct Expression *node,
                                 struct TypeEnvironment *env,
@@ -802,13 +837,13 @@ static struct TypeExp *_Analyze(struct CheckContext *context,
     case EXP_IF: return _AnalyzeIf(context, node, env, non_generics);
     case EXP_BINARY: return _AnalyzeBinary(context, node, env, non_generics);
     case EXP_UNARY: return _AnalyzeUnary(context, node, env, non_generics);
+    case EXP_TUPLE: return _AnalyzeTuple(context, node, env, non_generics);
     case EXP_INTEGER_CONSTANT: return &_IntegerTypeExp;
 
     case EXP_TRUE:
     case EXP_FALSE:
         return &_BooleanTypeExp;
 
-    case EXP_TUPLE:
     case EXP_INVALID:
     case EXP_ERROR:
         {

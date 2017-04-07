@@ -1,5 +1,4 @@
 # Tuples have a Type
 #
-# Enabled: False
 # ExpectedType: int * bool
 (1, true)
