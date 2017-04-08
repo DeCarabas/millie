@@ -870,7 +870,7 @@ static struct TypeExp *_AnalyzeTuple(
 {
     struct TypeExp *first, *rest;
     first = _Analyze(context, node->tuple_first, env, non_generics);
-    rest = _Analyze(context, node->tuple_next, env, non_generics);
+    rest = _Analyze(context, node->tuple_rest, env, non_generics);
     return _MakeTupleType(context->arena, first, rest);
 }
 
@@ -891,26 +891,56 @@ static struct TypeExp *_Analyze(struct CheckContext *context,
                                 struct TypeEnvironment *env,
                                 struct NonGenericTypeList *non_generics)
 {
+    struct TypeExp *result;
     switch(node->type) {
-    case EXP_IDENTIFIER: return _AnalyzeIdentifier(context, node, env);
-    case EXP_APPLY: return _AnalyzeApply(context, node, env, non_generics);
-    case EXP_LAMBDA: return _AnalyzeLambda(context, node, env, non_generics);
-    case EXP_LET: return _AnalyzeLet(context, node, env, non_generics);
-    case EXP_LETREC: return _AnalyzeLetRec(context, node, env, non_generics);
-    case EXP_IF: return _AnalyzeIf(context, node, env, non_generics);
-    case EXP_BINARY: return _AnalyzeBinary(context, node, env, non_generics);
-    case EXP_UNARY: return _AnalyzeUnary(context, node, env, non_generics);
+    case EXP_IDENTIFIER:
+        result = _AnalyzeIdentifier(context, node, env);
+        break;
+
+    case EXP_APPLY:
+        result = _AnalyzeApply(context, node, env, non_generics);
+        break;
+
+    case EXP_LAMBDA:
+        result = _AnalyzeLambda(context, node, env, non_generics);
+        break;
+
+    case EXP_LET:
+        result = _AnalyzeLet(context, node, env, non_generics);
+        break;
+
+    case EXP_LETREC:
+        result = _AnalyzeLetRec(context, node, env, non_generics);
+        break;
+
+    case EXP_IF:
+        result = _AnalyzeIf(context, node, env, non_generics);
+        break;
+
+    case EXP_BINARY:
+        result = _AnalyzeBinary(context, node, env, non_generics);
+        break;
+
+    case EXP_UNARY:
+        result = _AnalyzeUnary(context, node, env, non_generics);
+        break;
 
     case EXP_TUPLE:
-        return _AnalyzeTuple(context, node, env, non_generics);
-    case EXP_TUPLE_FINAL:
-            return _AnalyzeTupleFinal(context, node, env, non_generics);
+        result = _AnalyzeTuple(context, node, env, non_generics);
+        break;
 
-    case EXP_INTEGER_CONSTANT: return &_IntegerTypeExp;
+    case EXP_TUPLE_FINAL:
+        result = _AnalyzeTupleFinal(context, node, env, non_generics);
+        break;
+
+    case EXP_INTEGER_CONSTANT:
+        result = &_IntegerTypeExp;
+        break;
 
     case EXP_TRUE:
     case EXP_FALSE:
-        return &_BooleanTypeExp;
+        result = &_BooleanTypeExp;
+        break;
 
     case EXP_INVALID:
     case EXP_ERROR:
@@ -922,9 +952,11 @@ static struct TypeExp *_Analyze(struct CheckContext *context,
                 MStringCreateStatic("Invalid expression structure", &st)
             );
         }
+        result = &_ErrorTypeExp;
         break;
     }
-    return &_ErrorTypeExp;
+
+    return result;
 }
 
 struct TypeExp *GetExpressionType(

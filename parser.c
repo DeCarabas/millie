@@ -144,12 +144,26 @@ static Symbol _ParseSymbol(struct ParseContext *context)
 
 static struct Expression *_ParseExpr(struct ParseContext *context);
 
+static struct Expression *_ParseTuple(struct ParseContext *context);
+
+static struct Expression *_ParseTupleNext(struct ParseContext *context,
+                                          struct Expression *first)
+{
+    struct Expression *rest = _ParseTuple(context);
+
+    int length = 2; // Assume that we just parsed the end.
+    if (rest->type == EXP_TUPLE) {
+        length = rest->tuple_length + 1;
+    }
+
+    return MakeTuple(context->arena, first, rest, length);
+}
+
 static struct Expression *_ParseTuple(struct ParseContext *context)
 {
     struct Expression *car = _ParseExpr(context);
     if (_Match(context, TOK_COMMA)) {
-        struct Expression *cdr = _ParseTuple(context);
-        return MakeTuple(context->arena, car, cdr);
+        return _ParseTupleNext(context, car);
     } else {
         return MakeTupleFinal(context->arena, car);
     }
@@ -184,8 +198,7 @@ static struct Expression *_ParsePrimary(struct ParseContext *context)
     if (_Match(context, TOK_LPAREN)) {
         struct Expression *expr = _ParseExpr(context);
         if (_Match(context, TOK_COMMA)) {
-            struct Expression *rest = _ParseTuple(context);
-            expr = MakeTuple(context->arena, expr, rest);
+            expr = _ParseTupleNext(context, expr);
         }
         _Expect(context, TOK_RPAREN, "Expected a ')' after the expression.");
         return expr;

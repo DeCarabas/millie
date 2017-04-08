@@ -48,6 +48,13 @@ OPCODE(STOREA_64, REG, IDX, REG)
 // be based on the function ID.)
 OPCODE(NEW_CLOSURE, REG, DREG, 0)
 
+// NEW_TUPLE allocates a new tuple with the length in the first register, and
+// stores the allocated tuple in the second register.
+//
+// In memory, a tuple is a struct with a field for each slot, laid end to end.
+//
+OPCODE(NEW_TUPLE, REG, DREG, 0)
+
 // CALL calls a function, indicated by the closure pointer in the first
 // register. The single argument value is in the second register, and the
 // third register has the destination for the resulting value.

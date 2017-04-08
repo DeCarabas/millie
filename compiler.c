@@ -628,6 +628,34 @@ static uint8_t _CompileFalse(struct CompileContext *context)
     return _WriteLoadLiteral(context, 0);
 }
 
+static uint8_t _CompileTuple(struct CompileContext *context,
+                             struct Expression *expression)
+{
+    uint8_t len_reg = _WriteLoadLiteral(context, expression->tuple_length);
+
+    uint8_t out_reg = _GetFreeIntRegister(context);
+    _WriteCodeU8(context, OP_NEW_TUPLE);
+    _WriteCodeU8(context, len_reg);
+    _WriteCodeU8(context, out_reg);
+
+    _FreeRegister(context, len_reg);
+
+    struct Expression *cursor = expression;
+    for (int i = 0; i < expression->tuple_length; i++) {
+        uint8_t member_reg;
+        member_reg = _CompileExpression(context, expression->tuple_first);
+        _WriteCodeU8(context, OP_STOREA_64);
+        _WriteCodeU8(context, out_reg);
+        _WriteCodeU16(context, i);
+        _WriteCodeU8(context, member_reg);
+        _FreeRegister(context, member_reg);
+
+        cursor = cursor->tuple_rest;
+    }
+
+    return out_reg;
+}
+
 static uint8_t _CompileExpression(struct CompileContext *context,
                                   struct Expression *expression)
 {
@@ -643,11 +671,11 @@ static uint8_t _CompileExpression(struct CompileContext *context,
     case EXP_IF: return _CompileIf(context, expression);
     case EXP_TRUE: return _CompileTrue(context);
     case EXP_FALSE: return _CompileFalse(context);
+    case EXP_TUPLE: return _CompileTuple(context, expression);
 
     case EXP_ERROR:
         break;
 
-    case EXP_TUPLE:
     case EXP_TUPLE_FINAL:
     case EXP_INVALID:
         _ReportCompileError(

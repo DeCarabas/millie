@@ -1,0 +1,4 @@
+# Tuples have a Type
+#
+# Expected: (1, true)
+(1, true)

@@ -244,7 +244,8 @@ struct Expression {
         struct
         {
             struct Expression *tuple_first;
-            struct Expression *tuple_next;
+            struct Expression *tuple_rest;
+            int tuple_length;
         };
     };
     uint32_t start_token;
@@ -278,7 +279,7 @@ struct Expression *MakeBooleanLiteral(struct Arena *arena, uint32_t pos,
 struct Expression *MakeIntegerLiteral(struct Arena *arena, uint32_t pos,
                                       uint64_t value);
 struct Expression *MakeTuple(struct Arena *arena, struct Expression *first,
-                             struct Expression *next);
+                             struct Expression *rest, int length);
 struct Expression *MakeTupleFinal(struct Arena *arena, struct Expression *expr);
 void DumpExpression(struct SymbolTable *table, struct MillieTokens *tokens,
                     struct Expression *expression);

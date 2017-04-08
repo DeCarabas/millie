@@ -185,6 +185,16 @@ static struct RuntimeClosure *_AllocateClosure(int func_id, int slot_count)
     return closure;
 }
 
+static uint64_t *_AllocateTuple(uint64_t size)
+{
+    size_t alloc_size = size * sizeof(uint64_t);
+
+    LifetimeAllocations += alloc_size;
+    uint64_t *tuple = malloc(alloc_size);
+
+    return tuple;
+}
+
 uint64_t EvaluateCode(struct Module *module,
                       int func_id,
                       uint64_t closure,
@@ -383,6 +393,16 @@ uint64_t EvaluateCode(struct Module *module,
 
                 uint64_t *arr = (uint64_t *)(frame.registers[src_reg]);
                 arr[offset] = frame.registers[val_reg];
+            }
+            break;
+
+        case OP_NEW_TUPLE:
+            {
+                uint8_t len_reg = _ReadU8(&ip);
+                uint8_t dst_reg = _ReadU8(&ip);
+
+                uint64_t *tuple = _AllocateTuple(frame.registers[len_reg]);
+                frame.registers[dst_reg] = (uint64_t)tuple;
             }
             break;
 

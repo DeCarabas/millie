@@ -14,9 +14,69 @@
 #include "compiler.c"
 #include "runtime.c"
 
-//
+
+
+// ----------------------------------------------------------------------------
 // Driver
-//
+// ----------------------------------------------------------------------------
+static struct MString *FormatValue(uint64_t value, struct TypeExp *type) {
+    while(type->type == TYPEEXP_VARIABLE) {
+        type = type->var_instance;
+    }
+    struct MString *result;
+    switch(type->type) {
+    case TYPEEXP_BOOL:
+        result = value ? MStringCreate("true") : MStringCreate("false");
+        break;
+
+    case TYPEEXP_INT:
+        result = MStringPrintF("%lld", value);
+        break;
+
+    case TYPEEXP_FUNC:
+        result = MStringCreate("A FUNCTION"); // TODO PRETTIER
+        break;
+
+    case TYPEEXP_TUPLE:
+        {
+            uint64_t *tuple = (uint64_t *)value;
+            struct MString *acc = MStringCreate("(");
+            int i = 0;
+            struct MString *tv = NULL;
+            while(type->type == TYPEEXP_TUPLE) {
+                tv = FormatValue(tuple[i], type->tuple_first);
+                struct MString *nr = MStringPrintF(
+                    "%s%s, ",
+                    MStringData(acc),
+                    MStringData(tv)
+                );
+                MStringFree(&tv);
+                MStringFree(&acc);
+                acc = nr;
+
+                type = type->tuple_rest;
+                i += 1;
+            }
+
+            assert(type->type == TYPEEXP_TUPLE_FINAL);
+            tv = FormatValue(tuple[i], type->tuple_first);
+            result = MStringPrintF("%s%s)", MStringData(acc), MStringData(tv));
+            MStringFree(&acc);
+            MStringFree(&tv);
+        }
+        break;
+
+    case TYPEEXP_TUPLE_FINAL:
+    case TYPEEXP_VARIABLE:
+    case TYPEEXP_GENERIC_VARIABLE:
+    case TYPEEXP_INVALID:
+    case TYPEEXP_ERROR:
+        result = MStringCreate("<<Invalid>>");
+        break;
+    }
+    return result;
+}
+
 static void PrintErrors(const char *fname, struct MillieTokens *tokens,
                         struct Errors *errors)
 {
@@ -68,7 +128,6 @@ static void PrintErrors(const char *fname, struct MillieTokens *tokens,
         error = error->next;
     }
 }
-
 
 static struct MString *ReadFile(const char *filename)
 {
@@ -204,7 +263,9 @@ int main(int argc, const char *argv[])
         }
 
         uint64_t result = EvaluateCode(&module, func_id, 0, 0);
-        printf("%llu\n", result);
+        struct MString *result_str = FormatValue(result, type);
+        printf("%s\n", MStringData(result_str));
+        MStringFree(&result_str);
     }
 
     if (verbose) {

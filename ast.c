@@ -134,14 +134,15 @@ struct Expression *MakeIntegerLiteral(struct Arena *arena, uint32_t pos,
 }
 
 struct Expression *MakeTuple(struct Arena *arena, struct Expression *first,
-                             struct Expression *next)
+                             struct Expression *rest, int length)
 {
     struct Expression *result = ArenaAllocate(arena, sizeof(struct Expression));
     result->type = EXP_TUPLE;
     result->tuple_first = first;
-    result->tuple_next = next;
+    result->tuple_rest = rest;
+    result->tuple_length = length;
     result->start_token = first->start_token;
-    result->end_token = next->end_token;
+    result->end_token = rest->end_token;
     return result;
 }
 
@@ -270,12 +271,10 @@ static void _DumpExprImpl(
     case EXP_TUPLE:
     case EXP_TUPLE_FINAL:
         {
-            // NOTE: This relies on the fact that tuple_next is NULL if we're
-
-            _PrintIndent(indent); printf("tuple\n");
+            _PrintIndent(indent); printf("tuple (%d)\n", expression->tuple_length);
             _DumpExprImpl(table, tokens, expression->tuple_first, indent+1);
             while(expression->type != EXP_TUPLE_FINAL) {
-                expression = expression->tuple_next;
+                expression = expression->tuple_rest;
                 _DumpExprImpl(table, tokens, expression->tuple_first, indent+1);
             }
         }
