@@ -573,11 +573,6 @@ static void _UnifyImpl(struct UnifyContext *context, struct TypeExp *type_one,
         }
 
         if (type_one->arg_first) {
-            if (!type_two->arg_first) {
-                _ReportUnificationFailure(context);
-                return;
-            }
-
             _UnifyImpl(
                 context,
                 type_one->arg_first,
@@ -585,10 +580,6 @@ static void _UnifyImpl(struct UnifyContext *context, struct TypeExp *type_one,
             );
         }
         if (type_one->arg_second) {
-            if (!type_two->arg_second) {
-                _ReportUnificationFailure(context);
-                return;
-            }
             _UnifyImpl(
                 context,
                 type_one->arg_second,
