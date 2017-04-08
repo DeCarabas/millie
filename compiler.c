@@ -30,6 +30,10 @@ static struct CompiledExpression *_AddFunction(
     return global->functions + global->function_count - 1;
 }
 
+// ----------------------------------------------------------------------------
+// Compile Context
+// ----------------------------------------------------------------------------
+
 struct CompileBinding {
     Symbol symbol;
     uint8_t reg;
@@ -224,6 +228,10 @@ static void _FinishCompile(struct CompileContext *context,
 }
 
 
+// ----------------------------------------------------------------------------
+// Expressions
+// ----------------------------------------------------------------------------
+
 static uint8_t _CompileExpression(struct CompileContext *context,
                                    struct Expression *expression);
 
@@ -251,63 +259,6 @@ static uint8_t _CompileIntegerLiteral(struct CompileContext *context,
                                       struct Expression *expression)
 {
     return _WriteLoadLiteral(context, expression->literal_value);
-}
-
-static uint8_t _CompileLet(struct CompileContext *context,
-                           struct Expression *expression)
-{
-    uint8_t dest_reg = _CompileExpression(context, expression->let_value);
-    _PushBinding(context, expression->let_id, dest_reg);
-    uint8_t result = _CompileExpression(context, expression->let_body);
-    _PopBinding(context);
-    return result;
-}
-
-static uint8_t _CompileLambdaImpl(struct CompileContext *context,
-                                  struct Expression *expression,
-                                  Symbol self_id,
-                                  uint8_t closure_register);
-
-static uint8_t _CompileLetRec(struct CompileContext *context,
-                              struct Expression *expression)
-{
-    // `let rec` requires special handling, and so right now we require that
-    // the expression in a `let rec` is a function definition.
-    //
-    // In the fullness of time, we should loosen the restrictions on `let rec`,
-    // but for now we stick with this, which is a fine time-honored tradition
-    // dating back to Standard ML.
-    //
-    uint8_t dest_reg = _GetFreeIntRegister(context);
-    if (expression->let_value->type != EXP_LAMBDA) {
-        _ReportCompileError(
-            context,
-            expression->let_value,
-            "the expression in a let rec must be a function definition"
-        );
-        return dest_reg;
-    }
-
-    // Bind the identifier to our target register, and then compile the lambda,
-    // knowing that the closure object goes straight into the target register.
-    //
-    // (This is not, strictly speaking, necessary. If the closure refers to
-    // itself then it will pull the value from r0 directly, without creating a
-    // loop in its own closure. When we implement mutual recursion that will no
-    // longer be the case.)
-    //
-    _PushBinding(context, expression->let_id, dest_reg);
-    _CompileLambdaImpl(
-        context,
-        expression->let_value,
-        expression->let_id,
-        dest_reg
-    );
-
-    // Now we can compile the body.
-    uint8_t body_reg = _CompileExpression(context, expression->let_body);
-    _PopBinding(context);
-    return body_reg;
 }
 
 static uint8_t _CompileIdentifierImpl(struct CompileContext *context, Symbol id)
@@ -449,13 +400,61 @@ static uint8_t _CompileLambda(struct CompileContext *context,
     );
 }
 
+static uint8_t _CompileLet(struct CompileContext *context,
+                           struct Expression *expression)
+{
+    uint8_t dest_reg = _CompileExpression(context, expression->let_value);
+    _PushBinding(context, expression->let_id, dest_reg);
+    uint8_t result = _CompileExpression(context, expression->let_body);
+    _PopBinding(context);
+    return result;
+}
+
+static uint8_t _CompileLetRec(struct CompileContext *context,
+                              struct Expression *expression)
+{
+    // `let rec` requires special handling, and so right now we require that
+    // the expression in a `let rec` is a function definition.
+    //
+    // In the fullness of time, we should loosen the restrictions on `let rec`,
+    // but for now we stick with this, which is a fine time-honored tradition
+    // dating back to Standard ML.
+    //
+    uint8_t dest_reg = _GetFreeIntRegister(context);
+    if (expression->let_value->type != EXP_LAMBDA) {
+        _ReportCompileError(
+            context,
+            expression->let_value,
+            "the expression in a let rec must be a function definition"
+        );
+        return dest_reg;
+    }
+
+    // Bind the identifier to our target register, and then compile the lambda,
+    // knowing that the closure object goes straight into the target register.
+    //
+    // (This is not, strictly speaking, necessary. If the closure refers to
+    // itself then it will pull the value from r0 directly, without creating a
+    // loop in its own closure. When we implement mutual recursion that will no
+    // longer be the case.)
+    //
+    _PushBinding(context, expression->let_id, dest_reg);
+    _CompileLambdaImpl(
+        context,
+        expression->let_value,
+        expression->let_id,
+        dest_reg
+    );
+
+    // Now we can compile the body.
+    uint8_t body_reg = _CompileExpression(context, expression->let_body);
+    _PopBinding(context);
+    return body_reg;
+}
+
 static uint8_t _CompileApply(struct CompileContext *context,
                              struct Expression *expression)
 {
-    // TODO: OPT: Direct call opcode where func id is embedded in instruction
-    //            stream rather than register.
-    // TODO: Register allocation for reals; track references on registers and
-    //       free them when they aren't needed anymore.
     uint8_t lambda_register = _CompileExpression(
         context,
         expression->apply_function
@@ -540,72 +539,82 @@ static uint8_t _CompileUnary(struct CompileContext *context,
 static uint8_t _CompileIf(struct CompileContext *context,
                           struct Expression *expression)
 {
-    // This is a little bit complicated, so follow carefully.
-    //
-    // First, compile the test part of the if.  This will leave a boolean in
-    // result_reg.
-    uint8_t result_reg = _CompileExpression(context, expression->if_test);
+    ptrdiff_t false_target_loc;
+    {
+        // Compile the test part and jump-to-false.
+        uint8_t result_reg = _CompileExpression(context, expression->if_test);
 
-    // Now we write in a JZ(<result_reg>, <false_branch>) which will jump to
-    // <false_branch> if the test is false...
-    _WriteCodeU8(context, OP_JZ);
-    _WriteCodeU8(context, result_reg);
+        _WriteCodeU8(context, OP_JZ);
+        _WriteCodeU8(context, result_reg);
 
-    // ...but we need to skip over the <false_branch> offset, which is a 16b
-    // signed code offset from the location *after* the address. (So 0 does
-    // nothing.)
-    const ptrdiff_t false_target_loc = context->code_write - context->code;
-    _EnsureCodeCapacity(context, 2);
-    context->code_write += 2;
+        // Reserve space for, but do not write, the location of the false
+        // branch. (We'll know it once we're done compiling the true branch.)
+        false_target_loc = context->code_write - context->code;
+        _EnsureCodeCapacity(context, 2);
+        context->code_write += 2;
 
-    // We don't need the comparison register anymore.
-    _FreeRegister(context, result_reg);
-
-    // Now compile the true branch, and remember where we left the value.
-    uint8_t true_reg = _CompileExpression(context, expression->if_then);
-
-    // Now we need to stick in a jump over the false branch, but we don't
-    // know where it's going yet, so do the same trick where we leave a hole...
-    _WriteCodeU8(context, OP_JMP);
-    const ptrdiff_t end_target_loc = context->code_write - context->code;
-    _EnsureCodeCapacity(context, 2);
-    context->code_write += 2;
-
-    // Ah, here's where the false branch is. Compute the offset from the start
-    // of the code block...
-    const ptrdiff_t false_loc = context->code_write - context->code;
-
-    // ...and now the offset from the OP_JZ location, above, and write it in.
-    int16_t false_offset = false_loc - false_target_loc - 2;
-    context->code_write = context->code + false_target_loc;
-    _WriteCodeU16(context, false_offset);
-    context->code_write = context->code + false_loc;
-
-    // Now compile the false branch.
-    uint8_t false_reg = _CompileExpression(context, expression->if_else);
-
-    // If false put the data somewhere different than true, then we need to make
-    // it so the output is in the same register. Issue a MOV and then we can
-    // free the false register.
-    if (false_reg != true_reg) {
-        _WriteCodeU8(context, OP_MOV);
-        _WriteCodeU8(context, false_reg);
-        _WriteCodeU8(context, true_reg);
-        _FreeRegister(context, false_reg);
+        _FreeRegister(context, result_reg);
     }
 
-    // Now we're at the end of the block, so compute the offset from the start
-    // of the code block...
-    const ptrdiff_t end_loc = context->code_write - context->code;
+    uint8_t true_reg;
+    ptrdiff_t end_target_loc;
+    {
+        true_reg = _CompileExpression(context, expression->if_then);
 
-    // ...and now the offset from the OP_JMP location at the end of the <true>
-    // branch. Same semantics, same basic idea.
-    int16_t end_offset = end_loc - end_target_loc - 2;
-    context->code_write = context->code + end_target_loc;
-    _WriteCodeU16(context, end_offset);
-    context->code_write = context->code + end_loc;
+        _WriteCodeU8(context, OP_JMP);
 
-    // ...and the result got left in the <true> register.
+        // Reserve space for, but do not write, the location of the end of
+        // the expression, as we did for the FALSE spot.
+        end_target_loc= context->code_write - context->code;
+        _EnsureCodeCapacity(context, 2);
+        context->code_write += 2;
+    }
+
+    {
+        // This is where the <false> branch starts, go back and patch up the
+        // jump.
+        ptrdiff_t false_loc = context->code_write - context->code;
+
+        // (-2 because jumps are relative to the end of the jump instruction,
+        // and the offset is 2 bytes wide.)
+        int16_t false_offset = false_loc - false_target_loc - 2;
+        context->code_write = context->code + false_target_loc;
+        _WriteCodeU16(context, false_offset);
+
+        context->code_write = context->code + false_loc;
+    }
+
+    {
+        // Now compile the false branch.
+        // TODO: Temporarily free the true register before coming in here so
+        //       that we have a chance of using it... this whole thing is a
+        //       mess.
+        uint8_t false_reg = _CompileExpression(context, expression->if_else);
+
+        // If false put the data somewhere different than true, then we need to
+        // make it so the output is in the same register. Issue a MOV and then
+        // we can free the false register.
+        if (false_reg != true_reg) {
+            _WriteCodeU8(context, OP_MOV);
+            _WriteCodeU8(context, false_reg);
+            _WriteCodeU8(context, true_reg);
+            _FreeRegister(context, false_reg);
+        }
+    }
+
+    {
+        // This is the end of the whole expression, go back and patch up the jump.
+        const ptrdiff_t end_loc = context->code_write - context->code;
+
+        // (-2 because jumps are relative to the end of the jump instruction, and
+        // the offset is 2 bytes wide.)
+        int16_t end_offset = end_loc - end_target_loc - 2;
+        context->code_write = context->code + end_target_loc;
+        _WriteCodeU16(context, end_offset);
+
+        context->code_write = context->code + end_loc;
+    }
+
     return true_reg;
 }
 

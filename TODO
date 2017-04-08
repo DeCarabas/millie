@@ -23,3 +23,7 @@
 
 - Computed goto for inner bytecode loop ala
   http://eli.thegreenplace.net/2012/07/12/computed-goto-for-efficient-dispatch-tables
+
+- Register Allocation
+
+- Direct calls if the binding is already well known and no closure is required.
