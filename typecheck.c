@@ -75,6 +75,16 @@ static struct TypeExp *_MakeTupleType(struct Arena *arena,
     return result;
 }
 
+static struct TypeExp *_MakeTupleFinalType(struct Arena *arena,
+                                           struct TypeExp *first_type)
+{
+    struct TypeExp *result;
+    result = ArenaAllocate(arena, sizeof(struct TypeExp));
+    result->type = TYPEEXP_TUPLE_FINAL;
+    result->tuple_first = first_type;
+    return result;
+}
+
 static struct TypeExp *_MakeTypeVar(struct Arena *arena)
 {
     struct TypeExp *result = ArenaAllocate(arena, sizeof(struct TypeExp));
@@ -157,6 +167,26 @@ static struct TypeExp *_MakeGenericTypeExpImpl(
             result->arg_second = arg_second;
             return result;
         }
+
+    case TYPEEXP_TUPLE_FINAL:
+        {
+            struct TypeExp *arg_first = _MakeGenericTypeExpImpl(
+                arena,
+                type->arg_first,
+                non_generics
+            );
+            if (arg_first == type->arg_first)
+            {
+                // Nothing in this was generic at all.
+                return type;
+            }
+
+            struct TypeExp *result = ArenaAllocate(arena, sizeof(struct TypeExp));
+            result->type = type->type;
+            result->arg_first = arg_first;
+            return result;
+        }
+
     case TYPEEXP_INVALID:
     case TYPEEXP_INT:
     case TYPEEXP_BOOL:
@@ -216,6 +246,22 @@ static struct TypeExp *_MakeFreshTypeExpCopy(struct Arena *arena,
             result->arg_second = arg_second;
             return result;
         }
+
+    case TYPEEXP_TUPLE_FINAL:
+        {
+            struct TypeExp *arg_first;
+            arg_first = _MakeFreshTypeExpCopy(arena, type->arg_first);
+
+            if (arg_first == type->arg_first) {
+                return type;
+            }
+
+            struct TypeExp *result = ArenaAllocate(arena, sizeof(struct TypeExp));
+            result->type = type->type;
+            result->arg_first = arg_first;
+            return result;
+        }
+
     case TYPEEXP_VARIABLE:
     case TYPEEXP_BOOL:
     case TYPEEXP_INT:
@@ -337,6 +383,11 @@ struct MString *_FormatTypeExpressionImpl(struct TypeExp *type, int *counter)
             MStringFree(&left);
             MStringFree(&right);
             return result;
+        }
+
+    case TYPEEXP_TUPLE_FINAL:
+        {
+            return _FormatTypeExpressionImpl(type->tuple_first, counter);
         }
 
     case TYPEEXP_INVALID:
@@ -522,6 +573,11 @@ static void _UnifyImpl(struct UnifyContext *context, struct TypeExp *type_one,
         }
 
         if (type_one->arg_first) {
+            if (!type_two->arg_first) {
+                _ReportUnificationFailure(context);
+                return;
+            }
+
             _UnifyImpl(
                 context,
                 type_one->arg_first,
@@ -529,6 +585,10 @@ static void _UnifyImpl(struct UnifyContext *context, struct TypeExp *type_one,
             );
         }
         if (type_one->arg_second) {
+            if (!type_two->arg_second) {
+                _ReportUnificationFailure(context);
+                return;
+            }
             _UnifyImpl(
                 context,
                 type_one->arg_second,
@@ -823,6 +883,18 @@ static struct TypeExp *_AnalyzeTuple(
     return _MakeTupleType(context->arena, first, rest);
 }
 
+static struct TypeExp *_AnalyzeTupleFinal(
+    struct CheckContext *context,
+    struct Expression *node,
+    struct TypeEnvironment *env,
+    struct NonGenericTypeList *non_generics
+)
+{
+    struct TypeExp *first;
+    first = _Analyze(context, node->tuple_first, env, non_generics);
+    return _MakeTupleFinalType(context->arena, first);
+}
+
 static struct TypeExp *_Analyze(struct CheckContext *context,
                                 struct Expression *node,
                                 struct TypeEnvironment *env,
@@ -837,7 +909,12 @@ static struct TypeExp *_Analyze(struct CheckContext *context,
     case EXP_IF: return _AnalyzeIf(context, node, env, non_generics);
     case EXP_BINARY: return _AnalyzeBinary(context, node, env, non_generics);
     case EXP_UNARY: return _AnalyzeUnary(context, node, env, non_generics);
-    case EXP_TUPLE: return _AnalyzeTuple(context, node, env, non_generics);
+
+    case EXP_TUPLE:
+        return _AnalyzeTuple(context, node, env, non_generics);
+    case EXP_TUPLE_FINAL:
+            return _AnalyzeTupleFinal(context, node, env, non_generics);
+
     case EXP_INTEGER_CONSTANT: return &_IntegerTypeExp;
 
     case EXP_TRUE:

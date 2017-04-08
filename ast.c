@@ -145,6 +145,16 @@ struct Expression *MakeTuple(struct Arena *arena, struct Expression *first,
     return result;
 }
 
+struct Expression *MakeTupleFinal(struct Arena *arena, struct Expression *expr)
+{
+   struct Expression *result = ArenaAllocate(arena, sizeof(struct Expression));
+    result->type = EXP_TUPLE_FINAL;
+    result->tuple_first = expr;
+    result->start_token = expr->start_token;
+    result->end_token = expr->end_token;
+    return result;
+}
+
 static void _PrintIndent(int indent)
 {
     for(int i = 0; i < indent; i++) {
@@ -258,13 +268,16 @@ static void _DumpExprImpl(
         break;
 
     case EXP_TUPLE:
+    case EXP_TUPLE_FINAL:
         {
+            // NOTE: This relies on the fact that tuple_next is NULL if we're
+
             _PrintIndent(indent); printf("tuple\n");
-            while(expression->type == EXP_TUPLE) {
-                _DumpExprImpl(table, tokens, expression->tuple_first, indent+1);
+            _DumpExprImpl(table, tokens, expression->tuple_first, indent+1);
+            while(expression->type != EXP_TUPLE_FINAL) {
                 expression = expression->tuple_next;
+                _DumpExprImpl(table, tokens, expression->tuple_first, indent+1);
             }
-            _DumpExprImpl(table, tokens, expression, indent+1);
         }
         break;
 

@@ -639,6 +639,7 @@ static uint8_t _CompileExpression(struct CompileContext *context,
         break;
 
     case EXP_TUPLE:
+    case EXP_TUPLE_FINAL:
     case EXP_INVALID:
         _ReportCompileError(
             context,

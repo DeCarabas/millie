@@ -193,6 +193,7 @@ typedef enum {
     EXP_BINARY,
     EXP_UNARY,
     EXP_TUPLE,
+    EXP_TUPLE_FINAL,
 } ExpressionType;
 
 struct Expression {
@@ -278,6 +279,7 @@ struct Expression *MakeIntegerLiteral(struct Arena *arena, uint32_t pos,
                                       uint64_t value);
 struct Expression *MakeTuple(struct Arena *arena, struct Expression *first,
                              struct Expression *next);
+struct Expression *MakeTupleFinal(struct Arena *arena, struct Expression *expr);
 void DumpExpression(struct SymbolTable *table, struct MillieTokens *tokens,
                     struct Expression *expression);
 
@@ -306,6 +308,7 @@ typedef enum {
     TYPEEXP_INT,
     TYPEEXP_BOOL,
     TYPEEXP_TUPLE,
+    TYPEEXP_TUPLE_FINAL,
 } TypeExpType;
 
 struct TypeExp {

@@ -146,14 +146,13 @@ static struct Expression *_ParseExpr(struct ParseContext *context);
 
 static struct Expression *_ParseTuple(struct ParseContext *context)
 {
-    struct Expression *expr = _ParseExpr(context);
-
+    struct Expression *car = _ParseExpr(context);
     if (_Match(context, TOK_COMMA)) {
-        struct Expression *rest = _ParseTuple(context);
-        expr = MakeTuple(context->arena, expr, rest);
+        struct Expression *cdr = _ParseTuple(context);
+        return MakeTuple(context->arena, car, cdr);
+    } else {
+        return MakeTupleFinal(context->arena, car);
     }
-
-    return expr;
 }
 
 static struct Expression *_ParsePrimary(struct ParseContext *context)
@@ -183,9 +182,13 @@ static struct Expression *_ParsePrimary(struct ParseContext *context)
         return MakeIdentifier(context->arena, _PrevPos(context), sym);
     }
     if (_Match(context, TOK_LPAREN)) {
-        struct Expression *tuple = _ParseTuple(context);
+        struct Expression *expr = _ParseExpr(context);
+        if (_Match(context, TOK_COMMA)) {
+            struct Expression *rest = _ParseTuple(context);
+            expr = MakeTuple(context->arena, expr, rest);
+        }
         _Expect(context, TOK_RPAREN, "Expected a ')' after the expression.");
-        return tuple;
+        return expr;
     }
 
     _SyntaxError(context, "Expected an expression.");
