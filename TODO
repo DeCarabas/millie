@@ -29,3 +29,7 @@
 - Direct calls if the binding is already well known and no closure is required.
 
 - Tuple elements have different sizes.
+
+- Type declarations
+
+- Type ascription
