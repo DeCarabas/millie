@@ -131,12 +131,12 @@ static Symbol _Find(struct SymbolTable *table, struct MString *key)
         if (existing_hash == 0) {
             return INVALID_SYMBOL;
         }
+        if (dist > _ProbeDistance(table, existing_hash, pos)) {
+            return INVALID_SYMBOL;
+        }
         if (hash == existing_hash &&
             MStringEquals(key, table->entries[pos].key)) {
             return table->entries[pos].value;
-        }
-        if (dist > _ProbeDistance(table, existing_hash, pos)) {
-            return INVALID_SYMBOL;
         }
         pos = (pos + 1) & table->mask;
         dist += 1;
