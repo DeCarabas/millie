@@ -33,3 +33,8 @@
 - Type declarations
 
 - Type ascription
+
+- Precedence seems screwed up? Let vs If , move Tuple lower, look at
+  http://caml.inria.fr/pub/docs/manual-ocaml/expr.html (although I know you
+  want to spend time on syntax reform too; these old ML implementations are a
+  little wonky and aren't really ideal.)
