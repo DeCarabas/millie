@@ -1,0 +1,34 @@
+# Goofing off with different syntax ideas
+#
+# Enabled: False
+
+# Here let/in is replaced with curly-braces, to make C-style programmers feel
+# at home. You can imagine there being a top-level let...
+x = 7;
+y = {
+  fn factorial n => match n with
+    | 1 => 1
+    | n => n * factorial (n - 1)
+    ;
+  factorial 5
+};
+
+# They look so naked on their own, what if you had a keyword?
+#
+y = do {
+  fn factorial n => match n with
+    | 1 => 1
+    | n => n * factorial (n - 1)
+    ;
+  factorial 5
+};
+
+# Do could take an argument for a monadic combinator.  I'm worried that this
+# looks "the same" but is so very different that it would be worse to do this
+# than to just stick with an ML-derived syntax.
+y = do (io) {
+  x = readline;
+  y = print ("Hello %s! What is your favorite color?" % x);
+  z = readline;
+  print ("Mine too!");
+}

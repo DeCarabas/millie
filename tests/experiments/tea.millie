@@ -1,0 +1,26 @@
+;; Enabled: false
+;;
+;; Patterns are this BNF:
+;;
+;;   <Pattern> := <Base Pattern>                   -- Base: Success if base pattern matches and we're at a word.
+;;              | <Base Pattern> ';' <Letters>     -- Anagram: Success if base pattern matches and result only comprised of <Letters>
+;;              | <Base Pattern> ';' <Letters> '*' -- Open Anagram: Success if base pattern matches and result contains at least one <Letters>
+;;              | <Base Pattern> <Pattern>         -- Concat: Success if both patterns match
+;;              ;
+;;
+;;   <Base Pattern> := '.'                       -- Any single character
+;;              | <Letter>                       -- The specified character
+;;              | '1'...'9'                      -- Matched character
+;;              | '*'                            -- Wildcard: zero or more letters may be consumed
+;;              | '[' <Letters> ']'              -- Set: any of the letters in the set match
+;;              | '(' <Pattern> ')'              -- Nested: matches if <Pattern> matches
+;;              | <Base Pattern> <Base Pattern>  -- Concat: Success if both patterns match one after the other
+;;              ;
+;;
+;;   <Letters> := <Letter>
+;;              | <Letter> <Letters>
+;;              ;
+;;
+;;   <Letter> := 'a'...'z'
+;;
+(defun parse-

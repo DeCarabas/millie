@@ -29,9 +29,9 @@ Millie was started because of tweets:
   </a>
 </blockquote>
 
-Within that framework, Millie aims to be *useful* and *practical*, and is
-intended to be a good language for doing software engineering both in
-the large and in the small.
+Within that framework, Millie aims to be *useful* and *practical*, and
+is intended to be a good language for doing software engineering both
+in the large and in the small.
 
 Some of Millie's priorities are:
 

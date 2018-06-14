@@ -5,8 +5,6 @@
 # can look at it.
 #
 # Enabled: False
-# ExpectFailure: True
-# ExpectedError: either the argument or return type is incompatible
 
 # What we want is a nice syntax for a threaded monad function, where we have
 # a function 'a -> ('a -> 'b) -> 'b (which I think is the monadic combinator,
@@ -95,3 +93,4 @@ in
     begin do of     # do :: 'a io -> ('a -> 'b io) -> 'b io
         x := readln; # readln :: () -> string io;
         y = print x
+    in

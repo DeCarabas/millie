@@ -317,7 +317,6 @@ static struct Expression *_ParseLet(struct ParseContext *context)
             is_let_rec = true;
         }
 
-        // Hmm, what? HOW TO ERROR? Maybe in the context...
         Symbol variable = _ParseSymbol(context);
         _Expect(
             context,
